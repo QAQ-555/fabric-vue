@@ -59,20 +59,17 @@
   import { useStore } from 'vuex'
   
   const router = useRouter()
-  const store = useStore()
   
   // 用户信息
-  const username = computed(() => store.state.user.name || '管理员')
   const loginTime = ref(new Date().toLocaleString())
   const pendingTasks = ref(3)
   
   // 退出登录处理
   const handleLogout = () => {
     // 清除用户状态
-    store.commit('user/LOGOUT')
   
     // 跳转到登录页并阻止返回
-    router.replace('/login').then(() => {
+    router.replace('/').then(() => {
       window.location.reload() // 可选：完全重置应用状态
     })
   }

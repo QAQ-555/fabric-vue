@@ -50,14 +50,6 @@ const clearAllMessages = () => {
   }
 };
 
-const emit = defineEmits<{
-  (event: 'hide-header', isVisible: boolean): void
-}>();
-
-const hideHeader = () => {
-  emit('hide-header', false);
-};
-
 const handleLogin = async () => {
   if (!form.value.username || !form.value.password) {
     console.log("请输入用户名和密码");
@@ -71,8 +63,7 @@ const handleLogin = async () => {
     successMessage.value = "登录成功，3秒后跳转...";
     messageTimer = setTimeout(() => {
       successMessage.value = "";
-      hideHeader(); // 隐藏 Header
-      router.push("/main"); // 跳转操作
+      router.push("/user/main"); // 跳转操作
     }, 3000);
   } catch (error) {
     errorMessage.value = error.response?.data?.message || "用户名或密码错误";
