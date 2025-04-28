@@ -50,6 +50,14 @@ const clearAllMessages = () => {
   }
 };
 
+const emit = defineEmits<{
+  (event: 'hide-header', isVisible: boolean): void
+}>();
+
+const hideHeader = () => {
+  emit('hide-header', false);
+};
+
 const handleLogin = async () => {
   if (!form.value.username || !form.value.password) {
     console.log("请输入用户名和密码");
@@ -63,7 +71,8 @@ const handleLogin = async () => {
     successMessage.value = "登录成功，3秒后跳转...";
     messageTimer = setTimeout(() => {
       successMessage.value = "";
-      router.push("/dashboard"); // 跳转操作
+      hideHeader(); // 隐藏 Header
+      router.push("/main"); // 跳转操作
     }, 3000);
   } catch (error) {
     errorMessage.value = error.response?.data?.message || "用户名或密码错误";
@@ -77,20 +86,20 @@ const handleLogin = async () => {
 <style scoped>
 .auth-page {
   background: rgb(255, 255, 255);
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 2rem;
+  min-height: 100vh; /* 让页面高度占满整个视口 */
+  display: flex; /* 使用 Flexbox 布局 */
+  justify-content: center; /* 水平居中 */
+  align-items: center; /* 垂直居中 */
+  padding: 2rem; /* 添加内边距 */
 }
 
 .auth-card {
   width: 100%;
-  max-width: 420px;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 16px;
-  padding: 40px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  max-width: 420px; /* 设置最大宽度 */
+  background: rgba(255, 255, 255, 0.95); /* 半透明背景 */
+  border-radius: 16px; /* 圆角 */
+  padding: 40px; /* 内边距 */
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); /* 添加阴影 */
 }
 
 .brand-header {
@@ -100,6 +109,8 @@ const handleLogin = async () => {
 
 .logo {
   margin: 0 auto 1rem;
+  width: 100px; /* 调整 logo 大小 */
+  height: 100px;
 }
 
 .brand-title {
@@ -117,7 +128,7 @@ const handleLogin = async () => {
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.rem;
 }
 
 .form-group label {
@@ -128,7 +139,7 @@ const handleLogin = async () => {
 
 .form-input,
 .form-select {
-  width: 100%;
+  width: 90%;
   padding: 12px 16px;
   border: 2px solid #e2e8f0;
   border-radius: 8px;
@@ -141,14 +152,6 @@ const handleLogin = async () => {
   outline: none;
   border-color: #4caf50;
   box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2);
-}
-
-.form-select {
-  appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-  background-repeat: no-repeat;
-  background-position: right 1rem center;
-  background-size: 1em;
 }
 
 .submit-btn {
@@ -182,18 +185,20 @@ const handleLogin = async () => {
   margin-left: 0.5rem;
 }
 
-.success-message {
-  color: green;
-  margin: 10px 0;
-  padding: 10px;
-  background: #e6ffe6;
-  border-radius: 4px;
-}
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .auth-card {
+    padding: 20px;
+    max-width: 90%; /* 调整宽度以适应小屏幕 */
+  }
 
-.error-message {
-  color: red;
-  font-size: 12px;
-  margin-top: 5px;
-  height: 20px;
+  .brand-title {
+    font-size: 1.5rem;
+  }
+
+  .submit-btn {
+    font-size: 0.9rem;
+    padding: 12px;
+  }
 }
 </style>

@@ -1,13 +1,16 @@
 package main
 
 import (
+	invoke_fabric "backend/fabric-go/call"
+	connect_fabric "backend/fabric-go/network"
 	"encoding/json"
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
+	"github.com/golang-jwt/jwt/v4"
 )
 
 var (
@@ -16,8 +19,32 @@ var (
 )
 
 type User struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username     string   `json:"username"`
+	Password     string   `json:"password"`
+	Organization string   `json:"organization"`
+	Pubkeyhash   string   `json:"pubkeyhash"`
+	Token        int      `json:"token"`
+	Posted       []string `json:"posted"`
+	Accepted     []string `json:"posted"`
+	IsAdmin      bool     `json:"isAdmin"`
+	IsVerified   bool     `json:"isVerified"`
+	IsAccepted   bool     `json:"isAccepted"`
+}
+
+type Model struct {
+	Modelid    string `json:"Modelid"`
+	Modelowner string `json:"Modelowner"`
+	Modelhash  string `json:"Modelhash"`
+	Modelsign  string `json:"Modelsign"`
+}
+type Task struct {
+	TaskID        string   `json:"ID"`
+	Bonus         int      `json:"bonus"`
+	RootModelId   string   `json:"rootModelHash"`
+	PostedUser    string   `json:"postedUser"`
+	AcceptedUsers []string `json:"acceptedUsers"`
+	Models        []string `json:"models"`
+	IsComplete    bool     `json:"isComplete"`
 }
 
 func init() {
@@ -61,48 +88,66 @@ func saveUsersToFile() {
 }
 
 // 注册逻辑
-func register(c *gin.Context) {
+func register(ctx *gin.Context) {
 	var user User
-	if err := c.ShouldBindJSON(&user); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效请求"})
+	contract := connect_fabric.GetContract()
+
+	// 绑定 JSON 数据
+	if err := ctx.BindJSON(&user); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的 JSON 数据"})
 		return
 	}
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	if _, exists := users[user.Username]; exists {
-		c.JSON(http.StatusConflict, gin.H{"error": "用户名已存在"})
-		return
+	print(user.Username)
+	print(user.Password)
+	print(user.Organization)
+	// 调用 QueryUser 并处理返回值
+	err := invoke_fabric.CreateNewUser(contract, user.Username, user.Password, user.Organization, "test", 0, true, true, true)
+	if err != nil {
+		// 返回错误信息到前端
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
-
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
-	users[user.Username] = string(hashedPassword)
-	saveUsersToFile()
-
-	c.JSON(http.StatusOK, gin.H{"message": "注册成功"})
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "登录成功",
+	})
 }
 
 // 登录逻辑
-func login(c *gin.Context) {
+func login(ctx *gin.Context) {
 	var user User
-	if err := c.ShouldBindJSON(&user); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效请求"})
+	contract := connect_fabric.GetContract()
+
+	// 绑定 JSON 数据
+	if err := ctx.BindJSON(&user); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的 JSON 数据"})
 		return
 	}
 
-	mu.Lock()
-	defer mu.Unlock()
-
-	storedPassword, exists := users[user.Username]
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
+	// 调用 QueryUser 并处理返回值
+	queriedUser, err := invoke_fabric.QueryUser(contract, user.Username, user.Password)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(storedPassword), []byte(user.Password)); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "密码错误"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"message": "登录成功"})
+	// 模拟生成一个令牌（实际应使用 JWT 或其他方式）
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user": User{
+			Username:     queriedUser.Username,
+			Organization: queriedUser.Organization,
+			IsAdmin:      queriedUser.IsAdmin,
+		},
+		"exp": time.Now().Add(time.Hour * 8).Unix(),
+	})
+	print(token)
+
+	// 返回用户信息和令牌
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "登录成功",
+		"token":   token,
+		"user": gin.H{
+			"username":     queriedUser.Username,
+			"organization": queriedUser.Organization,
+			"isadmin":      queriedUser.IsAdmin,
+		},
+	})
 }

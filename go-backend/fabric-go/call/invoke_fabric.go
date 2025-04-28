@@ -14,6 +14,35 @@ import (
 	"github.com/hyperledger/fabric-gateway/pkg/client"
 )
 
+type User struct {
+	Username     string   `json:"username"`
+	Password     string   `json:"password"`
+	Organization string   `json:"organization"`
+	Pubkeyhash   string   `json:"pubkeyhash"`
+	Token        int      `json:"token"`
+	Posted       []string `json:"posted"`
+	Accepted     []string `json:"posted"`
+	IsAdmin      bool     `json:"isAdmin"`
+	IsVerified   bool     `json:"isVerified"`
+	IsAccepted   bool     `json:"isAccepted"`
+}
+
+type Model struct {
+	Modelid    string `json:"Modelid"`
+	Modelowner string `json:"Modelowner"`
+	Modelhash  string `json:"Modelhash"`
+	Modelsign  string `json:"Modelsign"`
+}
+type Task struct {
+	TaskID        string   `json:"ID"`
+	Bonus         int      `json:"bonus"`
+	RootModelId   string   `json:"rootModelHash"`
+	PostedUser    string   `json:"postedUser"`
+	AcceptedUsers []string `json:"acceptedUsers"`
+	Models        []string `json:"models"`
+	IsComplete    bool     `json:"isComplete"`
+}
+
 // 初始化用户账本
 func InitUserLedger(contract *client.Contract) {
 	fmt.Printf("\n--> Submit Transaction: InitLedger, 初始化用户数据 \n")
@@ -27,15 +56,50 @@ func InitUserLedger(contract *client.Contract) {
 }
 
 // 查询用户
-func QueryUser(contract *client.Contract, username string) {
+func QueryUser(contract *client.Contract, username string, password string) (*User, error) {
 	fmt.Printf("\n--> Evaluate Transaction: ReadUser, 查询用户 %s\n", username)
 
+	// 调用链码查询用户信息
 	result, err := contract.EvaluateTransaction("ReadUser", username)
 	if err != nil {
-		panic(fmt.Errorf("查询用户失败: %w", err))
+		return nil, fmt.Errorf("查询用户失败: %w", err)
 	}
 
-	fmt.Printf("*** 用户详情: %s\n", formatJSON(result))
+	// 将查询结果解析为 User 结构体
+	var user User
+	err = json.Unmarshal([]byte(result), &user)
+	if err != nil {
+		return nil, fmt.Errorf("解析 JSON 失败: %w", err)
+	}
+
+	// 验证密码
+	if user.Password != password {
+		return nil, fmt.Errorf("密码错误")
+	}
+
+	// 检查 IsVerified 和 IsAccepted 字段
+	if !user.IsVerified || !user.IsAccepted {
+		return nil, fmt.Errorf("用户未通过验证或未被接受")
+	}
+
+	// 如果所有条件都满足，返回用户信息
+	return &user, nil
+}
+
+// 注册用户register
+func CreateNewUser(contract *client.Contract, username, password, org, pubkeyhash string, token int, isAdmin, isVerified, isAccepted bool) error {
+	fmt.Printf("\n--> Submit Transaction: CreateUser, 创建新用户 %s\n", username)
+
+	_, err := contract.SubmitTransaction("CreateUser",
+		username, password, org, pubkeyhash,
+		fmt.Sprintf("%d", token),
+		fmt.Sprintf("%t", isAdmin),
+		fmt.Sprintf("%t", isVerified),
+		fmt.Sprintf("%t", isAccepted))
+	if err != nil {
+		return fmt.Errorf("注册失败")
+	}
+	return nil
 }
 
 func formatJSON(data []byte) string {
