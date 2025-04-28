@@ -4,6 +4,7 @@ import (
 	invoke_fabric "backend/fabric-go/call"
 	connect_fabric "backend/fabric-go/network"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"sync"
@@ -69,7 +70,8 @@ func main() {
 
 	r.POST("/register", register)
 	r.POST("/login", login)
-
+	r.POST("/get_user_info", get_user_info)
+	r.POST("/upload_public_key", upload_public_key)
 	r.Run(":8089")
 }
 
@@ -149,5 +151,68 @@ func login(ctx *gin.Context) {
 			"organization": queriedUser.Organization,
 			"isadmin":      queriedUser.IsAdmin,
 		},
+	})
+}
+
+// 用户信息查询逻辑
+func get_user_info(ctx *gin.Context) {
+	var user User
+	contract := connect_fabric.GetContract()
+
+	// 绑定 JSON 数据
+	if err := ctx.BindJSON(&user); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的 JSON 数据"})
+		return
+	}
+
+	// 打印接收到的用户信息
+	fmt.Printf("查询用户信息: 用户名=%s, 组织=%s\n", user.Username, user.Organization)
+
+	// 调用链码查询用户信息
+	queriedUser, err := invoke_fabric.Get_one_User(contract, user.Username)
+	if err != nil {
+		// 返回错误信息到前端
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("查询用户失败: %s", err.Error())})
+		return
+	}
+
+	// 返回用户信息到前端
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "用户信息查询成功",
+		"user": gin.H{
+			"username":     queriedUser.Username,
+			"organization": queriedUser.Organization,
+			"pubkeyhash":   queriedUser.Pubkeyhash,
+			"token":        queriedUser.Token,
+			"posted":       queriedUser.Posted,
+			"accepted":     queriedUser.Accepted,
+		},
+	})
+}
+
+func upload_public_key(ctx *gin.Context) {
+	var user User
+
+	// 绑定 JSON 数据
+	if err := ctx.BindJSON(&user); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的 JSON 数据"})
+		return
+	}
+
+	contract := connect_fabric.GetContract()
+	// 打印接收到的用户信息
+	fmt.Printf("上传公钥: 用户名=%s, 公钥=%s\n", user.Username, user.Pubkeyhash)
+
+	//调用链码上传公钥
+	err := invoke_fabric.UploadPublicKey(contract, user.Username, user.Pubkeyhash)
+	if err != nil {
+		// 返回错误信息到前端
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("上传公钥失败: %s", err.Error())})
+		return
+	}
+
+	// 返回成功信息到前端
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "公钥上传成功",
 	})
 }

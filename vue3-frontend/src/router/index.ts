@@ -3,6 +3,9 @@ import HomeView from '../views/HomeView.vue'
 import login from '../login/sign_in.vue'
 import register from '../login/sign_up.vue'
 import user_main from '../user_ui/user.vue'
+import user_profile from '../user_ui/user_profile.vue'
+import user_model from '../user_ui/user_model.vue'
+import user_task from '../user_ui/user_task.vue'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -28,6 +31,21 @@ const router = createRouter({
       path:'/user/main',
       name:'user_main',
       component: user_main
+    },
+    {
+      path:'/user/profile',
+      name:'user_profile',
+      component: user_profile
+    },
+    {
+      path:'/user/model',
+      name:'user_model',
+      component: user_model
+    },
+    {
+      path:'/user/task',
+      name:'user_task',
+      component: user_task
     }
   ],
 })

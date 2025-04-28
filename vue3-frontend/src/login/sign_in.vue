@@ -56,20 +56,23 @@ const handleLogin = async () => {
     return;
   }
   try {
-    const response = await axios.post(
-      "http://localhost:8089/login",
-      form.value
-    );
+    const response = await axios.post("http://localhost:8089/login", form.value);
+    const result = response.data;
+
+    // 保存用户信息和令牌到 localStorage
+    localStorage.setItem("authToken", result.token);
+    localStorage.setItem("userInfo", JSON.stringify(result.user));
+
     successMessage.value = "登录成功，3秒后跳转...";
     messageTimer = setTimeout(() => {
       successMessage.value = "";
-      router.push("/user/main"); // 跳转操作
+      router.push("/user/main"); // 跳转到主页面
     }, 3000);
   } catch (error) {
     errorMessage.value = error.response?.data?.message || "用户名或密码错误";
     messageTimer = setTimeout(() => {
       errorMessage.value = "";
-    }, 5000); // 错误提示5秒后消失
+    }, 5000);
   }
 };
 </script>

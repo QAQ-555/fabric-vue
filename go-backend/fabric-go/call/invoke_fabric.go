@@ -109,3 +109,79 @@ func formatJSON(data []byte) string {
 	}
 	return prettyJSON.String()
 }
+
+func Get_one_User(contract *client.Contract, username string) (*User, error) {
+	fmt.Printf("\n--> Evaluate Transaction: ReadUser, 查询用户 %s\n", username)
+
+	// 调用链码查询用户信息
+	result, err := contract.EvaluateTransaction("ReadUser", username)
+	if err != nil {
+		return nil, fmt.Errorf("查询用户失败: %w", err)
+	}
+
+	// 将查询结果解析为 User 结构体
+	var user User
+	err = json.Unmarshal([]byte(result), &user)
+	if err != nil {
+		return nil, fmt.Errorf("解析 JSON 失败: %w", err)
+	}
+
+	// 如果所有条件都满足，返回用户信息
+	return &user, nil
+}
+
+func UploadPublicKey(contract *client.Contract, username string, pubkeyhash string) error {
+	fmt.Printf("\n--> Evaluate Transaction: ReadUser, 查询用户 %s\n", username)
+
+	// 调用链码查询用户信息
+	result, err := contract.EvaluateTransaction("ReadUser", username)
+	if err != nil {
+		return fmt.Errorf("查询用户失败: %w", err)
+	}
+
+	// 将查询结果解析为 User 结构体
+	var user User
+	err = json.Unmarshal(result, &user)
+	if err != nil {
+		return fmt.Errorf("解析用户信息失败: %w", err)
+	}
+
+	// 更新用户的公钥哈希
+	user.Pubkeyhash = pubkeyhash
+	print(pubkeyhash)
+	print("test")
+	print(user.Pubkeyhash)
+	fmt.Printf("\n--> Submit Transaction: UpdateUser, 更新用户 %s 的公钥哈希\n", username)
+
+	// 调用链码更新用户信息
+	_, err = contract.SubmitTransaction(
+		"UpdateUser",
+		user.Username,
+		user.Password,
+		user.Organization,
+		user.Pubkeyhash,
+		fmt.Sprintf("%d", user.Token),
+		fmt.Sprintf("%t", user.IsAdmin),
+		fmt.Sprintf("%t", user.IsVerified),
+		fmt.Sprintf("%t", user.IsAccepted),
+	)
+	if err != nil {
+		return fmt.Errorf("更新用户公钥哈希失败: %w", err)
+	}
+
+	fmt.Printf("*** 用户 %s 的公钥哈希已成功更新\n", username)
+	return nil
+}
+
+// 上传模型
+func createNewModel(contract *client.Contract, modelowner, modelhash, modelsign string) {
+	fmt.Printf("\n--> Submit Transaction: CreateModel, 创建新模型 %s\n", modelhash)
+
+	// 调用链码的 CreateModel 方法
+	result, err := contract.SubmitTransaction("CreateModel", modelowner, modelhash, modelsign)
+	if err != nil {
+		panic(fmt.Errorf("创建模型失败: %w", err))
+	}
+
+	fmt.Printf("*** 模型创建成功,模型ID: %s\n", string(result))
+}
