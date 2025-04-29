@@ -57,6 +57,7 @@
                 <th>根模型cid</th>
                 <th>奖励</th>
                 <th>发布者</th>
+                <th>执行轮数</th>
                 <th>是否完成</th>
                 <th>操作</th>
               </tr>
@@ -68,6 +69,7 @@
                 <td>{{ task.rootModelHash }}</td>
                 <td>{{ task.bonus }}</td>
                 <td>{{ task.postedUser }}</td>
+                <td>{{ task.round }}</td>
                 <td>{{ task.isComplete ? '是' : '否' }}</td>
                 <td>
                   <button @click="acceptTask(task.ID)">接受任务</button>
@@ -101,8 +103,9 @@ const tasks = ref([])
 const getAllTasks = async () => {
   try {
     const response = await axios.post("http://localhost:8089/get_all_task");
-    tasks.value = response.data.tasks || [];
-    console.log("获取的任务列表:", response.data);
+    // 过滤任务：仅保留 nextRoundTaskID 为空且 isComplete 为 false 的任务
+    tasks.value = (response.data.tasks || []).filter(task => !task.nextRoundTaskID && !task.isComplete);
+    console.log("获取的任务列表:", tasks.value);
   } catch (error) {
     console.error("获取任务失败:", error);
     alert("获取任务失败，请稍后重试！");
@@ -111,6 +114,7 @@ const getAllTasks = async () => {
 
 // 接受任务
 const acceptTask = async (taskId) => {
+  console.log
   const task = tasks.value.find(t => t.ID === taskId);
   if (task && task.isComplete) {
     alert(`任务 ${taskId} 已完成，无法接受！`);
@@ -118,6 +122,7 @@ const acceptTask = async (taskId) => {
   }
 
   try {
+    console.log(userInfo.value.username)
     const response = await axios.post("http://localhost:8089/accept_task", {
       taskId,
       username: userInfo.value.username
@@ -215,7 +220,7 @@ const handleLogout = () => {
 }
 
 .logout-button:hover {
-  background: #e74c3c;
+  background: #e74c3c4;
   color: white;
 }
 

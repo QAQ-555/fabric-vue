@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
@@ -18,6 +17,17 @@ var (
 	users = make(map[string]string) // 内存中的用户数据
 	mu    sync.Mutex
 )
+
+// 默认配置
+var defaultConfig = connect_fabric.FabricConfig{
+	MSPID:        "org1MSP",
+	CryptoPath:   "/tmp/hyperledger/org1/admin",
+	CertPath:     "/tmp/hyperledger/org1/admin/msp/signcerts",
+	KeyPath:      "/tmp/hyperledger/org1/admin/msp/keystore",
+	TLSCertPath:  "/tmp/hyperledger/org1/peer1/tls-msp/tlscacerts/tls-0-0-0-0-7052.pem",
+	PeerEndpoint: "dns:///localhost:7051",
+	GatewayPeer:  "peer1-org1",
+}
 
 type User struct {
 	Username     string   `json:"username"`
@@ -38,19 +48,17 @@ type Model struct {
 	Modelhash  string `json:"Modelhash"`
 	Modelsign  string `json:"Modelsign"`
 }
-type Task struct {
-	TaskID        string   `json:"ID"`
-	Bonus         int      `json:"bonus"`
-	RootModelId   string   `json:"rootModelHash"`
-	PostedUser    string   `json:"postedUser"`
-	AcceptedUsers []string `json:"acceptedUsers"`
-	Models        []string `json:"models"`
-	IsComplete    bool     `json:"isComplete"`
-}
 
-func init() {
-	// 启动时加载用户数据
-	loadUsersFromFile()
+type Task struct {
+	TaskID          string   `json:"ID"`
+	Bonus           int      `json:"bonus"`
+	RootModelId     string   `json:"rootModelHash"`
+	PostedUser      string   `json:"postedUser"`
+	AcceptedUsers   []string `json:"acceptedUsers"`
+	Models          []string `json:"models"`
+	IsComplete      bool     `json:"isComplete"`
+	Round           int      `json:"round"`           // 新增：任务的轮次
+	NextRoundTaskID string   `json:"nextRoundTaskID"` // 新增：下一轮任务的 ID
 }
 
 func main() {
@@ -79,28 +87,17 @@ func main() {
 	r.POST("/get_all_users", get_all_users)
 	r.POST("/delete_user", delete_user)
 	r.POST("/verify_user", verify_user)
-
+	r.POST("/new_task", new_task)
+	r.POST("/next_task_round", next_task_round)
+	r.POST("/delete_task", delete_task)
+	r.POST("/finish_task", finish_task)
 	r.Run(":8089")
-}
-
-// 加载用户数据
-func loadUsersFromFile() {
-	data, err := os.ReadFile("users.json")
-	if err == nil {
-		json.Unmarshal(data, &users)
-	}
-}
-
-// 保存用户数据到文件
-func saveUsersToFile() {
-	data, _ := json.MarshalIndent(users, "", "  ")
-	os.WriteFile("users.json", data, 0644)
 }
 
 // 注册逻辑
 func register(ctx *gin.Context) {
 	var user User
-	contract := connect_fabric.GetContract()
+	contract := connect_fabric.GetContract(defaultConfig)
 
 	// 绑定 JSON 数据
 	if err := ctx.BindJSON(&user); err != nil {
@@ -124,7 +121,7 @@ func register(ctx *gin.Context) {
 // 登录逻辑
 func login(ctx *gin.Context) {
 	var user User
-	contract := connect_fabric.GetContract()
+	contract := connect_fabric.GetContract(defaultConfig)
 
 	// 绑定 JSON 数据
 	if err := ctx.BindJSON(&user); err != nil {
@@ -139,6 +136,12 @@ func login(ctx *gin.Context) {
 		return
 	}
 
+	// 检查 IsAccepted 和 IsVerified 状态
+	if !queriedUser.IsAccepted || !queriedUser.IsVerified {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "用户未被接受或未验证"})
+		return
+	}
+
 	// 模拟生成一个令牌（实际应使用 JWT 或其他方式）
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user": User{
@@ -148,7 +151,6 @@ func login(ctx *gin.Context) {
 		},
 		"exp": time.Now().Add(time.Hour * 8).Unix(),
 	})
-	print(token)
 
 	// 返回用户信息和令牌
 	ctx.JSON(http.StatusOK, gin.H{
@@ -165,7 +167,7 @@ func login(ctx *gin.Context) {
 // 用户信息查询逻辑
 func get_user_info(ctx *gin.Context) {
 	var user User
-	contract := connect_fabric.GetContract()
+	contract := connect_fabric.GetContract(defaultConfig)
 
 	// 绑定 JSON 数据
 	if err := ctx.BindJSON(&user); err != nil {
@@ -208,7 +210,7 @@ func upload_public_key(ctx *gin.Context) {
 		return
 	}
 
-	contract := connect_fabric.GetContract()
+	contract := connect_fabric.GetContract(defaultConfig)
 	// 打印接收到的用户信息
 	fmt.Printf("上传公钥: 用户名=%s, 公钥=%s\n", user.Username, user.Pubkeyhash)
 
@@ -245,7 +247,7 @@ func upload_model(ctx *gin.Context) {
 
 	// 注释掉调用链码及其后续逻辑
 
-	contract := connect_fabric.GetContract()
+	contract := connect_fabric.GetContract(defaultConfig)
 
 	// 调用链码上传模型
 	err := invoke_fabric.CreateNewModel(contract, model.Username, model.CID, model.Signature)
@@ -267,7 +269,7 @@ func upload_model(ctx *gin.Context) {
 
 // 获取所有任务
 func get_all_task(ctx *gin.Context) {
-	contract := connect_fabric.GetContract()
+	contract := connect_fabric.GetContract(defaultConfig)
 
 	// 调用链码获取所有任务
 	tasks, err := invoke_fabric.GetAllTasks(contract)
@@ -297,7 +299,7 @@ func accept_task(ctx *gin.Context) {
 		return
 	}
 
-	contract := connect_fabric.GetContract()
+	contract := connect_fabric.GetContract(defaultConfig)
 
 	// 检查用户是否已经接受了该任务
 	user, err := invoke_fabric.Get_one_User(contract, request.Username)
@@ -336,7 +338,7 @@ func accept_task(ctx *gin.Context) {
 
 // 获取所有用户信息
 func get_all_users(ctx *gin.Context) {
-	contract := connect_fabric.GetContract()
+	contract := connect_fabric.GetContract(defaultConfig)
 
 	// 调用链码获取所有用户
 	result, err := contract.EvaluateTransaction("GetAllUsers")
@@ -372,7 +374,7 @@ func delete_user(ctx *gin.Context) {
 		return
 	}
 
-	contract := connect_fabric.GetContract()
+	contract := connect_fabric.GetContract(defaultConfig)
 
 	// 调用链码删除用户
 	err := invoke_fabric.DeleteUser(contract, request.Username)
@@ -403,7 +405,7 @@ func verify_user(ctx *gin.Context) {
 	print(request.Username)
 	print(request.IsAdmin)
 	print(request.IsAccepted)
-	contract := connect_fabric.GetContract()
+	contract := connect_fabric.GetContract(defaultConfig)
 
 	// 调用链码更新用户的 isAdmin 和 isAccepted 状态
 	err := invoke_fabric.ManageUser(contract, request.Username, request.IsAdmin, true, request.IsAccepted)
@@ -415,5 +417,127 @@ func verify_user(ctx *gin.Context) {
 	// 返回成功信息到前端
 	ctx.JSON(http.StatusOK, gin.H{
 		"message": fmt.Sprintf("用户 %s 的状态已成功更新", request.Username),
+	})
+}
+
+func new_task(c *gin.Context) {
+	var requestBody struct {
+		Username    string `json:"username"`
+		Bonus       int    `json:"bonus"`
+		RootModelId string `json:"rootModelId"`
+	}
+
+	// 解析请求体
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误"})
+		return
+	}
+
+	// 获取 Fabric 合约实例
+	contract := connect_fabric.GetContract(defaultConfig)
+
+	// 调用 createNewTask 函数
+	round := 1            // 初始轮数为 1
+	nextRoundTaskID := "" // 初始任务没有下一轮任务 ID
+	invoke_fabric.CreateNewTask(contract, requestBody.Bonus, requestBody.RootModelId, requestBody.Username, round, nextRoundTaskID)
+
+	c.JSON(http.StatusOK, gin.H{"message": "任务创建成功"})
+}
+
+func next_task_round(c *gin.Context) {
+	var requestBody struct {
+		TaskID      string `json:"taskId"`
+		RootModelId string `json:"rootModelId"`
+		Username    string `json:"username"`
+	}
+
+	// 解析请求体
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		fmt.Printf("绑定 JSON 失败: %v\n", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误"})
+		return
+	}
+
+	// 获取 Fabric 合约实例
+	contract := connect_fabric.GetContract(defaultConfig)
+
+	// 调用 next_round 函数
+	err := invoke_fabric.Next_round(contract, requestBody.TaskID, requestBody.RootModelId)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("任务轮次更新失败: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "任务轮次更新成功"})
+}
+
+func delete_task(ctx *gin.Context) {
+	var request struct {
+		TaskID string `json:"taskId"`
+	}
+
+	// 绑定 JSON 数据
+	if err := ctx.BindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的 JSON 数据"})
+		return
+	}
+
+	contract := connect_fabric.GetContract(defaultConfig)
+
+	// 调用链码删除任务
+	err := invoke_fabric.DeleteTask(contract, request.TaskID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("删除任务失败: %s", err.Error())})
+		return
+	}
+
+	// 返回成功信息到前端
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("任务 %s 已成功删除", request.TaskID),
+	})
+}
+
+func finish_task(ctx *gin.Context) {
+	var request struct {
+		TaskID string `json:"taskId"`
+	}
+
+	// 绑定 JSON 数据
+	if err := ctx.BindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的 JSON 数据"})
+		return
+	}
+
+	contract := connect_fabric.GetContract(defaultConfig)
+	get_task, err := invoke_fabric.QueryTask(contract, request.TaskID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("获取任务数据失败: %s", err.Error())})
+		return
+	}
+	// 调用链码读取任务信息
+	acceptedUsers, err := invoke_fabric.Finish_Task(contract, request.TaskID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("修改任务时失败;%s", err.Error())})
+		return
+	}
+	// 提取接受任务的用户名单
+
+	if len(acceptedUsers) == 0 {
+		ctx.JSON(http.StatusOK, gin.H{"success": "没有用户接受该任务"})
+		return
+	}
+
+	// 向接受任务的用户转账
+	for _, user := range acceptedUsers {
+		err := invoke_fabric.TransferTokens(contract, "task_owner", user, get_task.Bonus)
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("向用户 %s 转账失败: %s", user, err.Error())})
+			return
+		}
+	}
+
+	// 返回成功信息到前端
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("任务 %s 已成功完成，奖励已发放:", request.TaskID),
 	})
 }

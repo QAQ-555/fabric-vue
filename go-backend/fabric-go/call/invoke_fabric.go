@@ -35,13 +35,15 @@ type Model struct {
 }
 
 type Task struct {
-	TaskID        string   `json:"ID"`
-	Bonus         int      `json:"bonus"`
-	RootModelId   string   `json:"rootModelHash"`
-	PostedUser    string   `json:"postedUser"`
-	AcceptedUsers []string `json:"acceptedUsers"`
-	Models        []string `json:"models"`
-	IsComplete    bool     `json:"isComplete"`
+	TaskID          string   `json:"ID"`
+	Bonus           int      `json:"bonus"`
+	RootModelId     string   `json:"rootModelHash"`
+	PostedUser      string   `json:"postedUser"`
+	AcceptedUsers   []string `json:"acceptedUsers"`
+	Models          []string `json:"models"`
+	IsComplete      bool     `json:"isComplete"`
+	Round           int      `json:"round"`           // 新增：任务的轮次
+	NextRoundTaskID string   `json:"nextRoundTaskID"` // 新增：下一轮任务的 ID
 }
 
 // 初始化用户账本
@@ -319,4 +321,186 @@ func ManageUser(contract *client.Contract, username string, isAdmin, isVerified,
 
 	fmt.Printf("*** 用户 %s 的状态已成功更新\n", username)
 	return nil
+}
+
+// 创建新任务
+func CreateNewTask(contract *client.Contract, bonus int, rootModelId, postedUser string, round int, nextRoundTaskID string) string {
+	fmt.Printf("\n--> Submit Transaction: CreateTask, 创建新任务\n")
+
+	// 调用链码的 CreateTask 方法
+	result, err := contract.SubmitTransaction("CreateTask",
+		"", // taskID 由链码生成
+		fmt.Sprintf("%d", bonus),
+		rootModelId,
+		postedUser,
+		fmt.Sprintf("%d", round),
+		nextRoundTaskID)
+	if err != nil {
+		panic(fmt.Errorf("创建任务失败: %w", err))
+	}
+
+	// 解析返回的 taskID
+	taskID := string(result)
+	fmt.Printf("*** 任务创建成功, 任务ID: %s\n", taskID)
+	return taskID
+}
+
+func DeleteTask(contract *client.Contract, Taskid string) error {
+	fmt.Printf("\n--> Submit Transaction: DeleteUser, 删除任务 %s\n", Taskid)
+
+	_, err := contract.SubmitTransaction("DeleteTask", Taskid)
+
+	if err != nil {
+		return fmt.Errorf("删除任务失败: %w", err)
+	}
+
+	fmt.Printf("*** 任务 %s 已成功删除\n", Taskid)
+	return nil
+}
+
+func Next_round(contract *client.Contract, taskID string, rootModelID string) error {
+	// 调用链码读取任务信息
+	result, err := contract.EvaluateTransaction("ReadTask", taskID)
+	if err != nil {
+		return fmt.Errorf("读取任务失败: %v", err)
+	}
+	var task Task
+	err = json.Unmarshal(result, &task)
+	if err != nil {
+		return fmt.Errorf("解析任务信息失败: %w", err)
+	}
+	print(task.TaskID + "\n")
+	print(task.RootModelId + "\n")
+	print(task.PostedUser + "\n")
+	// 更新任务信息
+	newRound := task.Round + 1
+
+	// 创建新任务
+	nexttaskid := CreateNewTask(contract,
+		task.Bonus,
+		rootModelID,
+		task.PostedUser,
+		newRound,
+		"")
+	print(nexttaskid + "\n")
+	/*
+		UpdateTask(ctx contractapi.TransactionContextInterface,
+			taskID string,
+			bonus int,
+			rootModelId string,
+			postedUser string,
+			isComplete bool,
+			round int,
+			nextRoundTaskID string
+		)
+	*/
+	// 调用链码更新原任务
+	_, err = contract.SubmitTransaction("UpdateTask",
+		task.TaskID,
+		fmt.Sprintf("%d", task.Bonus),
+		task.RootModelId,
+		task.PostedUser,
+		fmt.Sprintf("%t", true),
+		fmt.Sprintf("%d", task.Round),
+		nexttaskid,
+	)
+
+	if err != nil {
+		return fmt.Errorf("更新原任务失败: %v", err)
+	}
+
+	return nil
+}
+
+func TransferTokens(contract *client.Contract, sender, receiver string, amount int) error {
+	// 查询接收者信息
+	receiverResult, err := contract.EvaluateTransaction("ReadUser", receiver)
+	if err != nil {
+		return fmt.Errorf("查询接收者失败: %w", err)
+	}
+
+	// 解析接收者数据
+	var receiverData User
+	if err := json.Unmarshal(receiverResult, &receiverData); err != nil {
+		return fmt.Errorf("解析接收者数据失败: %w", err)
+	}
+
+	// 增加接收者余额
+	receiverData.Token += amount
+
+	// 更新接收者信息
+	_, err = contract.SubmitTransaction("UpdateUser",
+		receiverData.Username,
+		receiverData.Password,
+		receiverData.Organization,
+		receiverData.Pubkeyhash,
+		fmt.Sprintf("%d", receiverData.Token),
+		fmt.Sprintf("%t", receiverData.IsAdmin),
+		fmt.Sprintf("%t", receiverData.IsVerified),
+		fmt.Sprintf("%t", receiverData.IsAccepted),
+	)
+	if err != nil {
+		return fmt.Errorf("更新接收者信息失败: %w", err)
+	}
+
+	// 返回成功信息
+	return nil
+}
+
+func Finish_Task(contract *client.Contract, taskID string) ([]string, error) {
+	// 调用链码读取任务信息
+	result, err := contract.EvaluateTransaction("ReadTask", taskID)
+	if err != nil {
+		return nil, fmt.Errorf("读取任务失败: %v", err)
+	}
+	var task Task
+	err = json.Unmarshal(result, &task)
+	if err != nil {
+		return nil, fmt.Errorf("解析任务信息失败: %w", err)
+	}
+	/*
+		UpdateTask(ctx contractapi.TransactionContextInterface,
+			taskID string,
+			bonus int,
+			rootModelId string,
+			postedUser string,
+			isComplete bool,
+			round int,
+			nextRoundTaskID string
+		)
+	*/
+	// 调用链码更新原任务
+	_, err = contract.SubmitTransaction("UpdateTask",
+		task.TaskID,
+		fmt.Sprintf("%d", task.Bonus),
+		task.RootModelId,
+		task.PostedUser,
+		fmt.Sprintf("%t", true),
+		fmt.Sprintf("%d", task.Round),
+		task.NextRoundTaskID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("更新原任务失败: %v", err)
+	}
+
+	return task.AcceptedUsers, nil
+}
+
+func QueryTask(contract *client.Contract, taskID string) (*Task, error) {
+	fmt.Printf("\n--> Evaluate Transaction: ReadUser, 查询任务 %s\n", taskID)
+
+	// 调用链码查询用户信息
+	result, err := contract.EvaluateTransaction("ReadTask", taskID)
+	if err != nil {
+		return nil, fmt.Errorf("查询任务失败: %w", err)
+	}
+
+	// 将查询结果解析为 User 结构体
+	var task Task
+	err = json.Unmarshal([]byte(result), &task)
+	if err != nil {
+		return nil, fmt.Errorf("解析 JSON 失败: %w", err)
+	}
+	// 如果所有条件都满足，返回用户信息
+	return &task, nil
 }

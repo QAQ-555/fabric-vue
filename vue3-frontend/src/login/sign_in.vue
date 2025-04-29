@@ -62,7 +62,7 @@ const handleLogin = async () => {
   try {
     const response = await axios.post("http://localhost:8089/login", form.value)
     const result = response.data
-
+    console.log(response)
     // 保存用户信息和令牌到 localStorage
     localStorage.setItem("authToken", result.token)
     localStorage.setItem("userInfo", JSON.stringify(result.user))
@@ -79,7 +79,7 @@ const handleLogin = async () => {
       }
     }, 3000)
   } catch (error) {
-    errorMessage.value = error.response?.data?.message || "用户名或密码错误"
+    errorMessage.value = error.response?.data?.error || "用户名或密码错误"
     messageTimer = setTimeout(() => {
       errorMessage.value = ""
     }, 5000)
@@ -190,6 +190,13 @@ const handleLogin = async () => {
   text-decoration: none;
   font-weight: 500;
   margin-left: 0.5rem;
+}
+
+.error-message {
+  color: red;
+  font-size: 0.85rem;
+  margin-top: -10px;
+  margin-bottom: 10px;
 }
 
 /* 响应式调整 */

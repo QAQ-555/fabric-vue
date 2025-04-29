@@ -22,32 +22,39 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-const (
-	// 配置常量
-	mspID        = "org1MSP"
-	cryptoPath   = "/tmp/hyperledger/org1/admin"
-	certPath     = cryptoPath + "/msp/signcerts"
-	keyPath      = cryptoPath + "/msp/keystore"
-	tlsCertPath  = "/tmp/hyperledger/org1/peer1/tls-msp/tlscacerts/tls-0-0-0-0-7052.pem"
-	peerEndpoint = "dns:///localhost:7051"
-	gatewayPeer  = "peer1-org1"
-)
+type FabricConfig struct {
+	MSPID        string
+	CryptoPath   string
+	CertPath     string
+	KeyPath      string
+	TLSCertPath  string
+	PeerEndpoint string
+	GatewayPeer  string
+}
+
+// 默认配置
+var defaultConfig = FabricConfig{
+	MSPID:        "org1MSP",
+	CryptoPath:   "/tmp/hyperledger/org1/admin",
+	CertPath:     "/tmp/hyperledger/org1/admin/msp/signcerts",
+	KeyPath:      "/tmp/hyperledger/org1/admin/msp/keystore",
+	TLSCertPath:  "/tmp/hyperledger/org1/peer1/tls-msp/tlscacerts/tls-0-0-0-0-7052.pem",
+	PeerEndpoint: "dns:///localhost:7051",
+	GatewayPeer:  "peer1-org1",
+}
 
 // 获取合约
-func GetContract() *client.Contract {
-	// The gRPC client connection should be shared by all Gateway connections to this endpoint
-	clientConnection := newGrpcConnection()
+func GetContract(config FabricConfig) *client.Contract {
+	clientConnection := newGrpcConnection(config)
 
-	id := newIdentity()
-	sign := newSign()
+	id := newIdentity(config)
+	sign := newSign(config)
 
-	// Create a Gateway connection for a specific client identity
 	gw, err := client.Connect(
 		id,
 		client.WithSign(sign),
 		client.WithHash(hash.SHA256),
 		client.WithClientConnection(clientConnection),
-		// Default timeouts for different gRPC calls
 		client.WithEvaluateTimeout(5*time.Second),
 		client.WithEndorseTimeout(15*time.Second),
 		client.WithSubmitTimeout(5*time.Second),
@@ -57,8 +64,7 @@ func GetContract() *client.Contract {
 		panic(err)
 	}
 
-	// Override default values for chaincode and channel name as they may differ in testing contexts.
-	chaincodeName := "mycc" // 修改为您的链码名称
+	chaincodeName := "mycc"
 	if ccname := os.Getenv("CHAINCODE_NAME"); ccname != "" {
 		chaincodeName = ccname
 	}
@@ -75,8 +81,8 @@ func GetContract() *client.Contract {
 }
 
 // 创建 gRPC 连接
-func newGrpcConnection() *grpc.ClientConn {
-	certificatePEM, err := os.ReadFile(tlsCertPath)
+func newGrpcConnection(config FabricConfig) *grpc.ClientConn {
+	certificatePEM, err := os.ReadFile(config.TLSCertPath)
 	if err != nil {
 		panic(fmt.Errorf("failed to read TLS certifcate file: %w", err))
 	}
@@ -88,9 +94,9 @@ func newGrpcConnection() *grpc.ClientConn {
 
 	certPool := x509.NewCertPool()
 	certPool.AddCert(certificate)
-	transportCredentials := credentials.NewClientTLSFromCert(certPool, gatewayPeer)
+	transportCredentials := credentials.NewClientTLSFromCert(certPool, config.GatewayPeer)
 
-	connection, err := grpc.NewClient(peerEndpoint, grpc.WithTransportCredentials(transportCredentials))
+	connection, err := grpc.NewClient(config.PeerEndpoint, grpc.WithTransportCredentials(transportCredentials))
 	if err != nil {
 		panic(fmt.Errorf("failed to create gRPC connection: %w", err))
 	}
@@ -99,8 +105,8 @@ func newGrpcConnection() *grpc.ClientConn {
 }
 
 // 创建身份
-func newIdentity() *identity.X509Identity {
-	certificatePEM, err := readFirstFile(certPath)
+func newIdentity(config FabricConfig) *identity.X509Identity {
+	certificatePEM, err := readFirstFile(config.CertPath)
 	if err != nil {
 		panic(fmt.Errorf("failed to read certificate file: %w", err))
 	}
@@ -110,7 +116,7 @@ func newIdentity() *identity.X509Identity {
 		panic(err)
 	}
 
-	id, err := identity.NewX509Identity(mspID, certificate)
+	id, err := identity.NewX509Identity(config.MSPID, certificate)
 	if err != nil {
 		panic(err)
 	}
@@ -119,8 +125,8 @@ func newIdentity() *identity.X509Identity {
 }
 
 // 创建签名函数
-func newSign() identity.Sign {
-	privateKeyPEM, err := readFirstFile(keyPath)
+func newSign(config FabricConfig) identity.Sign {
+	privateKeyPEM, err := readFirstFile(config.KeyPath)
 	if err != nil {
 		panic(fmt.Errorf("failed to read private key file: %w", err))
 	}
