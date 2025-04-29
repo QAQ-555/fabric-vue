@@ -47,8 +47,32 @@
   
         <!-- 填充内容 -->
         <div class="content-placeholder" v-else>
-          <h2>任务管理</h2>
-          <p>请选择左侧菜单中的功能模块以查看详细内容。</p>
+            <h2>任务管理</h2>
+            <div v-if="tasks.length > 0" class="tasks-container">
+                <table class="tasks-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>任务ID</th>
+                            <th>任务名称</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="(task, index) in tasks" :key="index">
+                            <td>{{ index + 1 }}</td>
+                            <td>{{ task.id }}</td>
+                            <td>{{ task.name }}</td>
+                            <td>
+                                <button @click="acceptTask(task.id)">接受任务</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div v-else>
+                <p>暂无任务。</p>
+            </div>
         </div>
       </div>
     </div>
@@ -57,7 +81,9 @@
   <script setup>
   import { ref } from 'vue'
   import { useRouter } from 'vue-router'
-  
+  import { onMounted } from 'vue'
+  import axios from 'axios';
+
   const router = useRouter()
   
   // 从 localStorage 获取用户信息
@@ -66,6 +92,39 @@
   // 登录时间和待处理任务
   const loginTime = ref(new Date().toLocaleString())
   const pendingTasks = ref(3)
+
+  const tasks = ref([]); // 存储任务列表
+  
+  // 获取所有任务的方法
+  const getAllTasks = async () => {
+      try {
+          const response = await axios.post("http://localhost:8089/getalltask");
+          tasks.value = response.data.tasks || [];
+          console.log("获取的任务列表:", tasks.value);
+      } catch (error) {
+          console.error("获取任务失败:", error);
+          alert("获取任务失败，请稍后重试！");
+      }
+  };
+
+  // 接受任务的方法
+  const acceptTask = async (taskId) => {
+      try {
+          const response = await axios.post("http://localhost:8089/accept_task", { taskId });
+          alert(`任务 ${taskId} 接受成功！`);
+          // 可选：刷新任务列表
+          getAllTasks();
+      } catch (error) {
+          console.error("接受任务失败:", error);
+          alert("接受任务失败，请稍后重试！");
+      }
+  };
+
+  // 页面加载时获取任务列表
+  onMounted(() => {
+      getAllTasks();
+  });
+
   
   // 退出登录处理
   const handleLogout = () => {
@@ -202,4 +261,55 @@
     color: #2c3e50;
     margin-bottom: 10px;
   }
+
+  /* 任务表格样式 */
+.tasks-container {
+    margin-top: 20px;
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+    max-height: 400px; /* 固定高度 */
+    overflow-y: auto; /* 添加滚动条 */
+}
+
+.tasks-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.tasks-table th, .tasks-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+}
+
+.tasks-table th {
+    background-color: #f4f4f4;
+    color: #333;
+    font-weight: bold;
+}
+
+.tasks-table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.tasks-table tr:hover {
+    background-color: #f1f1f1;
+}
+
+.tasks-table button {
+    padding: 5px 10px;
+    border: none;
+    background-color: #4caf50;
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.tasks-table button:hover {
+    background-color: #45a049;
+}
   </style>

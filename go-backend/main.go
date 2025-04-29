@@ -26,7 +26,7 @@ type User struct {
 	Pubkeyhash   string   `json:"pubkeyhash"`
 	Token        int      `json:"token"`
 	Posted       []string `json:"posted"`
-	Accepted     []string `json:"posted"`
+	Accepted     []string `json:"accepted"`
 	IsAdmin      bool     `json:"isAdmin"`
 	IsVerified   bool     `json:"isVerified"`
 	IsAccepted   bool     `json:"isAccepted"`
@@ -72,6 +72,8 @@ func main() {
 	r.POST("/login", login)
 	r.POST("/get_user_info", get_user_info)
 	r.POST("/upload_public_key", upload_public_key)
+	r.POST("/upload_model", upload_model)
+
 	r.Run(":8089")
 }
 
@@ -214,5 +216,43 @@ func upload_public_key(ctx *gin.Context) {
 	// 返回成功信息到前端
 	ctx.JSON(http.StatusOK, gin.H{
 		"message": "公钥上传成功",
+	})
+}
+
+func upload_model(ctx *gin.Context) {
+	var model struct {
+		Username  string `json:"username"`
+		Signature string `json:"signature"`
+		CID       string `json:"cid"`
+	}
+
+	// 绑定 JSON 数据
+	if err := ctx.BindJSON(&model); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的 JSON 数据"})
+		return
+	}
+
+	// 打印接收到的 JSON 数据
+	fmt.Printf("接收到的模型数据: 用户名=%s, 签名=%s, CID=%s\n", model.Username, model.Signature, model.CID)
+
+	// 注释掉调用链码及其后续逻辑
+
+	contract := connect_fabric.GetContract()
+
+	// 调用链码上传模型
+	err := invoke_fabric.CreateNewModel(contract, model.Username, model.CID, model.Signature)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("上传模型失败: %s", err.Error())})
+		return
+	}
+
+	// 返回成功信息到前端
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "模型上传成功",
+	})
+
+	// 返回调试信息到前端
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "接收到模型数据，已打印到终端供调试",
 	})
 }

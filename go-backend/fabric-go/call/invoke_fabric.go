@@ -21,7 +21,7 @@ type User struct {
 	Pubkeyhash   string   `json:"pubkeyhash"`
 	Token        int      `json:"token"`
 	Posted       []string `json:"posted"`
-	Accepted     []string `json:"posted"`
+	Accepted     []string `json:"accepted"`
 	IsAdmin      bool     `json:"isAdmin"`
 	IsVerified   bool     `json:"isVerified"`
 	IsAccepted   bool     `json:"isAccepted"`
@@ -174,14 +174,34 @@ func UploadPublicKey(contract *client.Contract, username string, pubkeyhash stri
 }
 
 // 上传模型
-func createNewModel(contract *client.Contract, modelowner, modelhash, modelsign string) {
+func CreateNewModel(contract *client.Contract, modelowner, modelhash, modelsign string) error {
 	fmt.Printf("\n--> Submit Transaction: CreateModel, 创建新模型 %s\n", modelhash)
 
 	// 调用链码的 CreateModel 方法
 	result, err := contract.SubmitTransaction("CreateModel", modelowner, modelhash, modelsign)
 	if err != nil {
-		panic(fmt.Errorf("创建模型失败: %w", err))
+		return fmt.Errorf("创建模型失败: %w", err)
 	}
 
-	fmt.Printf("*** 模型创建成功,模型ID: %s\n", string(result))
+	modelID := string(result)
+	fmt.Printf("*** 模型创建成功, 模型ID: %s\n", modelID)
+
+	// 使用 add_2_posed 函数将模型 ID 添加到用户的 Posted 列表
+	fmt.Printf("\n--> Submit Transaction: AddToPosted, 更新用户 %s 的 Posted 列表\n", modelowner)
+	add_2_posed(contract, modelowner, modelID)
+
+	fmt.Printf("*** 用户 %s 的 Posted 列表已成功更新\n", modelowner)
+	return nil
+}
+
+func add_2_posed(contract *client.Contract, username, modelid string) {
+	result, err := contract.SubmitTransaction("AddToPosted", username, modelid)
+	if err != nil {
+		fmt.Printf("Failed to add to Posted: %v\n", err)
+		return
+	}
+	fmt.Printf("Successfully added to Posted: %s\n", string(result))
+	if err != nil {
+		fmt.Printf("Failed to add to Posted: %v\n", err)
+	}
 }

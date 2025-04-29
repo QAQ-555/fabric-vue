@@ -45,10 +45,42 @@
                 <button class="upload-key-btn" @click="showUploadPanel = true">上传公钥</button>
             </div>
 
-            <!-- 加载中提示 -->
-            <div v-else class="loading-container">
-                <p>正在加载用户信息...</p>
+            <!-- 已上传模型展示 -->
+            <div v-if="postedModels.length > 0" class="models-container">
+                <h2>已上传模型</h2>
+                <table class="models-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>模型ID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="(model, index) in postedModels" :key="index">
+                            <td>{{ index + 1 }}</td>
+                            <td>{{ model }}</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
+            <div v-else class="no-models-container">
+                <p>暂无已上传模型。</p>
+            </div>
+
+            <!-- 已创建任务展示 -->
+            <div v-if="tasks.length > 0" class="tasks-container">
+                <h2>已创建任务</h2>
+                <ul class="tasks-list">
+                    <li v-for="(task, index) in tasks" :key="index">
+                        📝 任务名称：{{ task }}
+                    </li>
+                </ul>
+            </div>
+            <div v-else class="no-tasks-container">
+                <p>暂无已创建任务。</p>
+            </div>
+
+
 
             <!-- 上传公钥面板 -->
             <div v-if="showUploadPanel" class="upload-panel">
@@ -77,6 +109,8 @@ const pubkey_now = ref("加载中...")
 const token = ref("加载中...")
 const showUploadPanel = ref(false) // 控制上传公钥面板的显示
 const publicKeyInput = ref("") // 存储用户输入的公钥
+const postedModels = ref([]); // 存储已上传模型的数组，直接展示内容
+const tasks = ref([]); // 存储已创建任务的数组
 
 const pubkeycommit_form = ref({
     username: "",
@@ -99,8 +133,9 @@ const getinfo = async () => {
         organization_now.value = response.data.user.organization;
         pubkey_now.value = response.data.user.pubkeyhash;
         token.value = response.data.user.token;
-
-        console.log("后端返回的用户信息:", response.data.user);
+        postedModels.value = response.data.user.posted || []; // 更新已上传模型数组
+        tasks.value = response.data.user.tasks || []; // 更新已创建任务数组
+        console.log("已创建任务:", tasks.value);
     } catch (error) {
         console.error("获取用户信息失败:", error);
         alert("获取用户信息失败，请稍后重试！");
@@ -143,6 +178,11 @@ const handleLogout = () => {
 onMounted(() => {
     getinfo();
 });
+
+// 模拟查看模型详情的方法
+const viewModelDetails = (model) => {
+    alert(`查看模型详情: ${model.name}`);
+};
 </script>
 
 <style scoped>
@@ -320,5 +360,48 @@ onMounted(() => {
 
 .panel-actions button:last-child:hover {
     background-color: #c0392b;
+}
+
+/* 已上传模型展示样式 */
+.models-container {
+    margin-top: 20px;
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+    max-height: 200px; /* 固定高度 */
+    overflow-y: auto; /* 添加滚动条 */
+}
+
+.models-container h2 {
+    margin-bottom: 15px;
+    color: #2c3e50;
+}
+
+/* 模型表格样式 */
+.models-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.models-table th, .models-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+}
+
+.models-table th {
+    background-color: #f4f4f4;
+    color: #333;
+    font-weight: bold;
+}
+
+.models-table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.models-table tr:hover {
+    background-color: #f1f1f1;
 }
 </style>
