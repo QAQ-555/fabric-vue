@@ -1,11 +1,13 @@
 <template>
   <div class="auth-page">
     <div class="auth-card">
+      <!-- 标题 -->
       <div class="brand-header">
         <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="80" height="80" />
         <h1 class="brand-title">用户注册</h1>
       </div>
 
+      <!-- 注册表单 -->
       <form class="custom-form" @submit.prevent="handleRegister">
         <div class="form-group">
           <label>用户名</label>
@@ -40,16 +42,15 @@
 </template>
 
 <script setup lang="ts">
+// 引入依赖
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+// 初始化变量
 const router = useRouter()
-const form = ref({
-  username: '',
-  password: '',
-  organization: ''
-})
+const form = ref({ username: '', password: '', organization: '' })
 
+// 注册处理
 const handleRegister = async () => {
   if (!form.value.username || !form.value.password|| !form.value.organization) {
     console.log('请填写完整信息')
@@ -86,6 +87,7 @@ const handleRegister = async () => {
 </script>
 
 <style scoped>
+/* 页面布局 */
 .auth-page {
   background: rgb(255, 255, 255);
   min-height: 100vh;
@@ -95,6 +97,7 @@ const handleRegister = async () => {
   padding: 2rem;
 }
 
+/* 注册卡片 */
 .auth-card {
   width: 100%;
   max-width: 420px;
@@ -122,6 +125,7 @@ const handleRegister = async () => {
   font-size: 1.8rem;
 }
 
+/* 表单样式 */
 .custom-form {
   display: flex;
   flex-direction: column;

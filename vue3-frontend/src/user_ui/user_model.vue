@@ -4,6 +4,7 @@
     <div class="sidebar">
       <div class="logo">AI System</div>
       <nav>
+        <!-- 导航链接 -->
         <router-link to="/user/main" class="nav-item">
           <span class="icon">🏠</span>
           <span>首页</span>
@@ -45,11 +46,10 @@
         </ul>
       </div>
 
-      <!-- 填充内容 -->
+      <!-- 模型管理 -->
       <div class="content-placeholder" v-else>
         <h2>模型管理</h2>
-        <p>请选择左侧菜单中的功能模块以查看详细内容。</p>
-        <!-- 调整布局 -->
+        <!-- 上传模型 -->
         <div class="button-group">
           <textarea
             v-model="modelSignature"
@@ -61,7 +61,8 @@
             <input type="file" ref="fileInput" style="display: none" @change="uploadFile" />
           </div>
         </div>
-        <!-- 下载按钮区域 -->
+
+        <!-- 下载模型 -->
         <div class="download-section">
           <h3>下载模型</h3>
           <p>请输入模型的 CID 以下载文件。</p>
@@ -73,29 +74,22 @@
 </template>
 
 <script setup>
+// 引入依赖
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { create } from 'ipfs-http-client'
 
+// 初始化变量
 const router = useRouter()
-
-// 创建 IPFS 客户端
 const ipfs = create({ url: 'http://localhost:5001' })
-
-// 从 localStorage 获取用户信息
 const userInfo = ref(JSON.parse(localStorage.getItem('userInfo') || '{}'))
-
-// 登录时间和待处理任务
 const loginTime = ref(new Date().toLocaleString())
 const pendingTasks = ref(3)
-
-// 模型签名
 const modelSignature = ref('')
-
-// 上传文件到 IPFS
 const fileInput = ref(null)
 
+// 上传模型方法
 const handleUpload = () => {
   if (!modelSignature.value.trim()) {
     alert('请先输入模型签名')
@@ -111,14 +105,11 @@ const uploadFile = async (event) => {
     return
   }
 
-  console.log(`准备上传文件: ${file.name}`)
-
   try {
     console.log('开始上传文件到 IPFS...')
     const added = await ipfs.add(file)
     console.log(`文件上传成功，CID: ${added.cid}`)
 
-    // 将模型签名和 CID 一起发送到后端
     await sendToBackend(modelSignature.value, added.cid.toString())
     alert(`文件已上传到 IPFS，CID: ${added.cid}`)
   } catch (error) {
@@ -130,7 +121,7 @@ const uploadFile = async (event) => {
 const sendToBackend = async (signature, cid) => {
   try {
     const response = await axios.post('http://localhost:8089/upload_model', {
-      username: userInfo.value.username, // 当前登录用户
+      username: userInfo.value.username,
       signature,
       cid,
     })
@@ -142,17 +133,7 @@ const sendToBackend = async (signature, cid) => {
   }
 }
 
-const handleLogout = () => {
-  // 清除用户状态
-  localStorage.removeItem('authToken')
-  localStorage.removeItem('userInfo')
-
-  // 跳转到登录页并阻止返回
-  router.replace('/').then(() => {
-    window.location.reload() // 可选：完全重置应用状态
-  })
-}
-
+// 下载模型方法
 const handleDownload = async () => {
   const cid = prompt('请输入模型的 CID：')
   if (!cid) {
@@ -170,12 +151,10 @@ const handleDownload = async () => {
     }
 
     const fileContent = new Blob(chunks)
-
-    // 创建一个 Blob 并触发下载
     const url = window.URL.createObjectURL(fileContent)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${cid}.txt`
+    a.download = `${cid}`
     a.click()
     window.URL.revokeObjectURL(url)
 
@@ -184,6 +163,15 @@ const handleDownload = async () => {
     console.error('下载失败:', error)
     alert('下载失败，请重试')
   }
+}
+
+// 退出登录方法
+const handleLogout = () => {
+  localStorage.removeItem('authToken')
+  localStorage.removeItem('userInfo')
+  router.replace('/').then(() => {
+    window.location.reload()
+  })
 }
 </script>
 
@@ -235,7 +223,7 @@ const handleDownload = async () => {
 .logout-area {
   position: absolute;
   bottom: 20px;
-  width: calc(100% - 40px); /* 适配侧边栏padding */
+  width: calc(100% - 40px);
 }
 
 .logout-button {
@@ -310,7 +298,7 @@ const handleDownload = async () => {
   margin-bottom: 10px;
 }
 
-/* 调整按钮组样式 */
+/* 按钮组样式 */
 .button-group {
   margin-top: 20px;
   display: flex;
@@ -319,7 +307,6 @@ const handleDownload = async () => {
   gap: 10px;
 }
 
-/* 按钮容器样式 */
 .button-container {
   display: flex;
   justify-content: center;
@@ -340,7 +327,6 @@ const handleDownload = async () => {
   background-color: #2980b9;
 }
 
-/* 签名多行文本框样式 */
 .signature-textarea {
   width: 100%;
   height: 100px;

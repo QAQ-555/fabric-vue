@@ -1,11 +1,13 @@
 <template>
   <div class="auth-page">
     <div class="auth-card">
+      <!-- 标题 -->
       <div class="brand-header">
         <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="80" height="80" />
         <h1 class="brand-title">用户登录</h1>
       </div>
 
+      <!-- 登录表单 -->
       <form class="custom-form" @submit.prevent="handleLogin">
         <div class="form-group">
           <label>用户名</label>
@@ -29,55 +31,58 @@
 </template>
 
 <script setup lang="ts">
-import axios from "axios";
-import { ref } from "vue";
-import { useRouter } from "vue-router";
-const router = useRouter();
-const form = ref({
-  username: "",
-  password: "",
-});
-const errorMessage = ref("");
-const successMessage = ref("");
-let messageTimer = null;
+// 引入依赖
+import axios from "axios"
+import { ref } from "vue"
+import { useRouter } from "vue-router"
 
+// 初始化变量
+const router = useRouter()
+const form = ref({ username: "", password: "" })
+const errorMessage = ref("")
+const successMessage = ref("")
+let messageTimer = null
+
+// 清除消息
 const clearAllMessages = () => {
-  errorMessage.value = "";
-  successMessage.value = "";
+  errorMessage.value = ""
+  successMessage.value = ""
   if (messageTimer) {
-    clearTimeout(messageTimer);
-    messageTimer = null;
+    clearTimeout(messageTimer)
+    messageTimer = null
   }
-};
+}
 
+// 登录处理
 const handleLogin = async () => {
   if (!form.value.username || !form.value.password) {
-    console.log("请输入用户名和密码");
-    return;
+    console.log("请输入用户名和密码")
+    return
   }
   try {
-    const response = await axios.post("http://localhost:8089/login", form.value);
-    const result = response.data;
+    const response = await axios.post("http://localhost:8089/login", form.value)
+    const result = response.data
 
     // 保存用户信息和令牌到 localStorage
-    localStorage.setItem("authToken", result.token);
-    localStorage.setItem("userInfo", JSON.stringify(result.user));
+    localStorage.setItem("authToken", result.token)
+    localStorage.setItem("userInfo", JSON.stringify(result.user))
 
-    successMessage.value = "登录成功，3秒后跳转...";
+    successMessage.value = "登录成功，3秒后跳转..."
     messageTimer = setTimeout(() => {
-      successMessage.value = "";
-      router.push("/user/main"); // 跳转到主页面
-    }, 3000);
+      successMessage.value = ""
+      router.push("/user/main") // 跳转到主页面
+    }, 3000)
   } catch (error) {
-    errorMessage.value = error.response?.data?.message || "用户名或密码错误";
+    errorMessage.value = error.response?.data?.message || "用户名或密码错误"
     messageTimer = setTimeout(() => {
-      errorMessage.value = "";
-    }, 5000);
+      errorMessage.value = ""
+    }, 5000)
   }
-};
+}
 </script>
 
 <style scoped>
+/* 页面布局 */
 .auth-page {
   background: rgb(255, 255, 255);
   min-height: 100vh; /* 让页面高度占满整个视口 */
@@ -87,6 +92,7 @@ const handleLogin = async () => {
   padding: 2rem; /* 添加内边距 */
 }
 
+/* 登录卡片 */
 .auth-card {
   width: 100%;
   max-width: 420px; /* 设置最大宽度 */
@@ -113,6 +119,7 @@ const handleLogin = async () => {
   font-size: 1.8rem;
 }
 
+/* 表单样式 */
 .custom-form {
   display: flex;
   flex-direction: column;

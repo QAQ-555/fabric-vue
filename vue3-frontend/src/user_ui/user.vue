@@ -55,19 +55,17 @@
 </template>
 
 <script setup>
+// 引入依赖
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+// 初始化变量
 const router = useRouter()
-
-// 从 localStorage 获取用户信息
 const userInfo = ref(JSON.parse(localStorage.getItem('userInfo') || '{}'))
-
-// 登录时间和待处理任务
 const loginTime = ref(new Date().toLocaleString())
 const pendingTasks = ref(3)
 
-// 退出登录处理
+// 退出登录
 const handleLogout = () => {
   // 清除用户状态
   localStorage.removeItem('authToken')

@@ -73,6 +73,8 @@ func main() {
 	r.POST("/get_user_info", get_user_info)
 	r.POST("/upload_public_key", upload_public_key)
 	r.POST("/upload_model", upload_model)
+	r.POST("/get_all_task", get_all_task)
+	r.POST("/accept_task", accept_task)
 
 	r.Run(":8089")
 }
@@ -254,5 +256,72 @@ func upload_model(ctx *gin.Context) {
 	// 返回调试信息到前端
 	ctx.JSON(http.StatusOK, gin.H{
 		"message": "接收到模型数据，已打印到终端供调试",
+	})
+}
+
+func get_all_task(ctx *gin.Context) {
+	contract := connect_fabric.GetContract()
+
+	// 调用链码获取所有任务
+	tasks, err := invoke_fabric.GetAllTasks(contract)
+	if err != nil {
+		// 返回错误信息到前端
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("获取任务失败: %s", err.Error())})
+		return
+	}
+
+	// 返回任务信息到前端
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "任务获取成功",
+		"tasks":   tasks,
+	})
+}
+
+func accept_task(ctx *gin.Context) {
+	var request struct {
+		Username string `json:"username"`
+		TaskID   string `json:"taskID"`
+	}
+
+	// 绑定 JSON 数据
+	if err := ctx.BindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的 JSON 数据"})
+		return
+	}
+
+	contract := connect_fabric.GetContract()
+
+	// 检查用户是否已经接受了该任务
+	user, err := invoke_fabric.Get_one_User(contract, request.Username)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("查询用户信息失败: %s", err.Error())})
+		return
+	}
+
+	for _, acceptedTask := range user.Accepted {
+		if acceptedTask == request.TaskID {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("用户 %s 已经接受了任务 %s", request.Username, request.TaskID)})
+			return
+		}
+	}
+
+	// 调用链码将任务添加到用户的 Accepted 字段
+	fmt.Printf("接受任务: 用户名=%s, 任务ID=%s\n", request.Username, request.TaskID)
+	err = invoke_fabric.AddToAccepted(contract, request.Username, request.TaskID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("添加任务到用户的 Accepted 字段失败: %s", err.Error())})
+		return
+	}
+
+	// 调用链码将用户添加到任务的接受用户列表中
+	err = invoke_fabric.AddUserToTask(contract, request.TaskID, request.Username)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("将用户添加到任务的接受用户列表失败: %s", err.Error())})
+		return
+	}
+
+	// 返回成功信息到前端
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("任务 %s 已成功被用户 %s 接受", request.TaskID, request.Username),
 	})
 }

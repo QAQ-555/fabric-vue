@@ -205,3 +205,55 @@ func add_2_posed(contract *client.Contract, username, modelid string) {
 		fmt.Printf("Failed to add to Posted: %v\n", err)
 	}
 }
+
+func GetAllTasks(contract *client.Contract) ([]map[string]interface{}, error) {
+	fmt.Println("\n--> Evaluate Transaction: GetAllTasks, 查询所有任务")
+
+	result, err := contract.EvaluateTransaction("GetAllTasks")
+	if err != nil {
+		return nil, fmt.Errorf("查询所有任务失败: %w", err)
+	}
+
+	// 如果返回值为空，直接返回提示信息
+	if len(result) == 0 || string(result) == "null" {
+		return nil, fmt.Errorf("没有找到任何任务")
+	}
+
+	// 将结果解析为 JSON 对象
+	var tasks []map[string]interface{}
+	err = json.Unmarshal(result, &tasks)
+	if err != nil {
+		return nil, fmt.Errorf("解析任务 JSON 失败: %w", err)
+	}
+
+	fmt.Printf("*** 所有任务: %s\n", formatJSON(result))
+	return tasks, nil
+}
+
+// 添加任务到用户的 Accepted 字段
+func AddToAccepted(contract *client.Contract, username, taskID string) error {
+	fmt.Printf("\n--> Submit Transaction: AddToAccepted, 将任务 %s 添加到用户 %s 的 Accepted 字段\n", taskID, username)
+
+	// 调用链码的 AddToAccepted 方法
+	_, err := contract.SubmitTransaction("AddToAccepted", username, taskID)
+	if err != nil {
+		return fmt.Errorf("添加任务到 Accepted 字段失败: %w", err)
+	}
+
+	fmt.Printf("*** 成功将任务 %s 添加到用户 %s 的 Accepted 字段\n", taskID, username)
+	return nil
+}
+
+// 将用户添加到任务的接受用户列表中
+func AddUserToTask(contract *client.Contract, taskID, username string) error {
+	fmt.Printf("\n--> Submit Transaction: AddUserToTask, 将用户 %s 添加到任务 %s 的接受用户列表中\n", username, taskID)
+
+	// 调用链码的 AddUserToTask 方法
+	_, err := contract.SubmitTransaction("AddUserToTask", taskID, username)
+	if err != nil {
+		return fmt.Errorf("将用户添加到任务的接受用户列表失败: %w", err)
+	}
+
+	fmt.Printf("*** 成功将用户 %s 添加到任务 %s 的接受用户列表中\n", username, taskID)
+	return nil
+}
