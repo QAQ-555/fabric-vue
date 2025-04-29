@@ -6,6 +6,12 @@ import user_main from '../user_ui/user.vue'
 import user_profile from '../user_ui/user_profile.vue'
 import user_model from '../user_ui/user_model.vue'
 import user_task from '../user_ui/user_task.vue'
+import admin_main from '../admin_ui/admin.vue'
+import admin_profile from '../admin_ui/admin_profile.vue'
+import admin_model from '../admin_ui/admin_model.vue'
+import admin_task from '../admin_ui/admin_task.vue'
+import admin_user from '../admin_ui/admin_user.vue'
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -46,6 +52,31 @@ const router = createRouter({
       path:'/user/task',
       name:'user_task',
       component: user_task
+    },
+    {
+      path: '/admin/main',
+      name: 'admin_main',
+      component: admin_main
+    },
+    {
+      path: '/admin/profile',
+      name: 'admin_profile',
+      component: admin_profile
+    },
+    {
+      path: '/admin/model',
+      name: 'admin_model',
+      component: admin_model
+    },
+    {
+      path: '/admin/task',
+      name: 'admin_task',
+      component: admin_task
+    },
+    {
+      path: '/admin/user',
+      name: 'admin_user',
+      component: admin_user
     }
   ],
 })

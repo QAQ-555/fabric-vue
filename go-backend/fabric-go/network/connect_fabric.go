@@ -23,6 +23,7 @@ import (
 )
 
 const (
+	// 配置常量
 	mspID        = "org1MSP"
 	cryptoPath   = "/tmp/hyperledger/org1/admin"
 	certPath     = cryptoPath + "/msp/signcerts"
@@ -32,6 +33,7 @@ const (
 	gatewayPeer  = "peer1-org1"
 )
 
+// 获取合约
 func GetContract() *client.Contract {
 	// The gRPC client connection should be shared by all Gateway connections to this endpoint
 	clientConnection := newGrpcConnection()
@@ -72,8 +74,7 @@ func GetContract() *client.Contract {
 	return contract
 }
 
-// ... (保持 newGrpcConnection, newIdentity, newSign, readFirstFile 函数不变)
-// newGrpcConnection creates a gRPC connection to the Gateway server.
+// 创建 gRPC 连接
 func newGrpcConnection() *grpc.ClientConn {
 	certificatePEM, err := os.ReadFile(tlsCertPath)
 	if err != nil {
@@ -97,7 +98,7 @@ func newGrpcConnection() *grpc.ClientConn {
 	return connection
 }
 
-// newIdentity creates a client identity for this Gateway connection using an X.509 certificate.
+// 创建身份
 func newIdentity() *identity.X509Identity {
 	certificatePEM, err := readFirstFile(certPath)
 	if err != nil {
@@ -117,7 +118,7 @@ func newIdentity() *identity.X509Identity {
 	return id
 }
 
-// newSign creates a function that generates a digital signature from a message digest using a private key.
+// 创建签名函数
 func newSign() identity.Sign {
 	privateKeyPEM, err := readFirstFile(keyPath)
 	if err != nil {
@@ -137,6 +138,7 @@ func newSign() identity.Sign {
 	return sign
 }
 
+// 读取第一个文件
 func readFirstFile(dirPath string) ([]byte, error) {
 	dir, err := os.Open(dirPath)
 	if err != nil {
@@ -151,7 +153,7 @@ func readFirstFile(dirPath string) ([]byte, error) {
 	return os.ReadFile(path.Join(dirPath, fileNames[0]))
 }
 
-// Format JSON data (保持不变)
+// 格式化 JSON 数据
 func formatJSON(data []byte) string {
 	var prettyJSON bytes.Buffer
 	if err := json.Indent(&prettyJSON, data, "", "  "); err != nil {

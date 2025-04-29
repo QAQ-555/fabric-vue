@@ -33,6 +33,7 @@ type Model struct {
 	Modelhash  string `json:"Modelhash"`
 	Modelsign  string `json:"Modelsign"`
 }
+
 type Task struct {
 	TaskID        string   `json:"ID"`
 	Bonus         int      `json:"bonus"`
@@ -86,7 +87,7 @@ func QueryUser(contract *client.Contract, username string, password string) (*Us
 	return &user, nil
 }
 
-// 注册用户register
+// 注册用户
 func CreateNewUser(contract *client.Contract, username, password, org, pubkeyhash string, token int, isAdmin, isVerified, isAccepted bool) error {
 	fmt.Printf("\n--> Submit Transaction: CreateUser, 创建新用户 %s\n", username)
 
@@ -102,6 +103,7 @@ func CreateNewUser(contract *client.Contract, username, password, org, pubkeyhas
 	return nil
 }
 
+// 格式化 JSON 数据
 func formatJSON(data []byte) string {
 	var prettyJSON bytes.Buffer
 	if err := json.Indent(&prettyJSON, data, "", "  "); err != nil {
@@ -110,6 +112,7 @@ func formatJSON(data []byte) string {
 	return prettyJSON.String()
 }
 
+// 查询单个用户
 func Get_one_User(contract *client.Contract, username string) (*User, error) {
 	fmt.Printf("\n--> Evaluate Transaction: ReadUser, 查询用户 %s\n", username)
 
@@ -130,6 +133,7 @@ func Get_one_User(contract *client.Contract, username string) (*User, error) {
 	return &user, nil
 }
 
+// 上传公钥
 func UploadPublicKey(contract *client.Contract, username string, pubkeyhash string) error {
 	fmt.Printf("\n--> Evaluate Transaction: ReadUser, 查询用户 %s\n", username)
 
@@ -194,6 +198,7 @@ func CreateNewModel(contract *client.Contract, modelowner, modelhash, modelsign 
 	return nil
 }
 
+// 添加到 Posted 列表
 func add_2_posed(contract *client.Contract, username, modelid string) {
 	result, err := contract.SubmitTransaction("AddToPosted", username, modelid)
 	if err != nil {
@@ -255,5 +260,63 @@ func AddUserToTask(contract *client.Contract, taskID, username string) error {
 	}
 
 	fmt.Printf("*** 成功将用户 %s 添加到任务 %s 的接受用户列表中\n", username, taskID)
+	return nil
+}
+
+// 删除用户
+func DeleteUser(contract *client.Contract, username string) error {
+	fmt.Printf("\n--> Submit Transaction: DeleteUser, 删除用户 %s\n", username)
+
+	// 调用链码的 DeleteUser 方法
+	_, err := contract.SubmitTransaction("DeleteUser", username)
+	if err != nil {
+		return fmt.Errorf("删除用户失败: %w", err)
+	}
+
+	fmt.Printf("*** 用户 %s 已成功删除\n", username)
+	return nil
+}
+
+// 管理用户
+func ManageUser(contract *client.Contract, username string, isAdmin, isVerified, isAccepted bool) error {
+	fmt.Printf("\n--> Evaluate Transaction: ReadUser, 查询用户 %s\n", username)
+
+	// 调用链码查询用户信息
+	result, err := contract.EvaluateTransaction("ReadUser", username)
+	if err != nil {
+		return fmt.Errorf("查询用户失败: %w", err)
+	}
+
+	// 将查询结果解析为 User 结构体
+	var user User
+	err = json.Unmarshal(result, &user)
+	if err != nil {
+		return fmt.Errorf("解析用户信息失败: %w", err)
+	}
+
+	// 更新用户的状态
+	user.IsAdmin = isAdmin
+	user.IsVerified = isVerified
+	user.IsAccepted = isAccepted
+
+	fmt.Printf("\n--> Submit Transaction: UpdateUser, 更新用户 %s 的状态\n", username)
+
+	// 调用链码更新用户信息
+	_, err = contract.SubmitTransaction(
+		"UpdateUser",
+		user.Username,
+		user.Password,
+		user.Organization,
+		user.Pubkeyhash,
+		fmt.Sprintf("%d", user.Token),
+		fmt.Sprintf("%t", user.IsAdmin),
+		fmt.Sprintf("%t", user.IsVerified),
+		fmt.Sprintf("%t", user.IsAccepted),
+	)
+	if err != nil {
+		return fmt.Errorf("更新用户状态失败: %w", err)
+	}
+
+	fmt.Printf("*** 用户 %s 的状态已成功更新\n", username)
 	return nil
 }

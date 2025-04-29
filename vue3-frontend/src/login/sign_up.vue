@@ -72,8 +72,8 @@ const handleRegister = async () => {
     if (response.ok) {
       // 注册成功，跳转到登录页面
       console.log('注册成功:', result.message)
-      alert('注册成功，请登录！')
-      router.push('/login')
+      alert('注册成功，等待管理员验证后登录！')
+      router.push('/')
     } else {
       // 注册失败，显示错误信息
       console.error('注册失败:', result.error)

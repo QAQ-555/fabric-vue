@@ -56,7 +56,7 @@ func init() {
 func main() {
 	r := gin.Default()
 
-	// 允许跨域
+	// 配置跨域
 	r.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
@@ -68,6 +68,7 @@ func main() {
 		c.Next()
 	})
 
+	// 路由配置
 	r.POST("/register", register)
 	r.POST("/login", login)
 	r.POST("/get_user_info", get_user_info)
@@ -75,6 +76,9 @@ func main() {
 	r.POST("/upload_model", upload_model)
 	r.POST("/get_all_task", get_all_task)
 	r.POST("/accept_task", accept_task)
+	r.POST("/get_all_users", get_all_users)
+	r.POST("/delete_user", delete_user)
+	r.POST("/verify_user", verify_user)
 
 	r.Run(":8089")
 }
@@ -107,13 +111,13 @@ func register(ctx *gin.Context) {
 	print(user.Password)
 	print(user.Organization)
 	// 调用 QueryUser 并处理返回值
-	err := invoke_fabric.CreateNewUser(contract, user.Username, user.Password, user.Organization, "test", 0, true, true, true)
+	err := invoke_fabric.CreateNewUser(contract, user.Username, user.Password, user.Organization, "test", 0, false, false, false)
 	if err != nil {
 		// 返回错误信息到前端
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
 	ctx.JSON(http.StatusOK, gin.H{
-		"message": "登录成功",
+		"message": "注册成功",
 	})
 }
 
@@ -194,6 +198,7 @@ func get_user_info(ctx *gin.Context) {
 	})
 }
 
+// 上传公钥
 func upload_public_key(ctx *gin.Context) {
 	var user User
 
@@ -221,6 +226,7 @@ func upload_public_key(ctx *gin.Context) {
 	})
 }
 
+// 上传模型
 func upload_model(ctx *gin.Context) {
 	var model struct {
 		Username  string `json:"username"`
@@ -259,6 +265,7 @@ func upload_model(ctx *gin.Context) {
 	})
 }
 
+// 获取所有任务
 func get_all_task(ctx *gin.Context) {
 	contract := connect_fabric.GetContract()
 
@@ -277,6 +284,7 @@ func get_all_task(ctx *gin.Context) {
 	})
 }
 
+// 接受任务
 func accept_task(ctx *gin.Context) {
 	var request struct {
 		Username string `json:"username"`
@@ -323,5 +331,89 @@ func accept_task(ctx *gin.Context) {
 	// 返回成功信息到前端
 	ctx.JSON(http.StatusOK, gin.H{
 		"message": fmt.Sprintf("任务 %s 已成功被用户 %s 接受", request.TaskID, request.Username),
+	})
+}
+
+// 获取所有用户信息
+func get_all_users(ctx *gin.Context) {
+	contract := connect_fabric.GetContract()
+
+	// 调用链码获取所有用户
+	result, err := contract.EvaluateTransaction("GetAllUsers")
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("获取用户失败: %s", err.Error())})
+		return
+	}
+
+	// 如果返回值为空，返回提示信息
+	if len(result) == 0 || string(result) == "null" {
+		ctx.JSON(http.StatusOK, gin.H{
+			"message": "没有找到任何用户",
+			"users":   []string{},
+		})
+		return
+	}
+
+	// 返回用户信息到前端
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "用户获取成功",
+		"users":   json.RawMessage(result),
+	})
+}
+
+func delete_user(ctx *gin.Context) {
+	var request struct {
+		Username string `json:"username"`
+	}
+
+	// 绑定 JSON 数据
+	if err := ctx.BindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的 JSON 数据"})
+		return
+	}
+
+	contract := connect_fabric.GetContract()
+
+	// 调用链码删除用户
+	err := invoke_fabric.DeleteUser(contract, request.Username)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("删除用户失败: %s", err.Error())})
+		return
+	}
+
+	// 返回成功信息到前端
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("用户 %s 已成功删除", request.Username),
+	})
+}
+
+func verify_user(ctx *gin.Context) {
+	var request struct {
+		Username   string `json:"username"`
+		IsAdmin    bool   `json:"isAdmin"`
+		IsAccepted bool   `json:"isAccepted"`
+	}
+	// 绑定 JSON 数据
+	if err := ctx.BindJSON(&request); err != nil {
+		fmt.Printf("绑定 JSON 失败: %v\n", err)
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的 JSON 数据"})
+		return
+	}
+	print("test2")
+	print(request.Username)
+	print(request.IsAdmin)
+	print(request.IsAccepted)
+	contract := connect_fabric.GetContract()
+
+	// 调用链码更新用户的 isAdmin 和 isAccepted 状态
+	err := invoke_fabric.ManageUser(contract, request.Username, request.IsAdmin, true, request.IsAccepted)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("更新用户状态失败: %s", err.Error())})
+		return
+	}
+
+	// 返回成功信息到前端
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("用户 %s 的状态已成功更新", request.Username),
 	})
 }

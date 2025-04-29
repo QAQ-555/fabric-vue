@@ -68,9 +68,15 @@ const handleLogin = async () => {
     localStorage.setItem("userInfo", JSON.stringify(result.user))
 
     successMessage.value = "登录成功，3秒后跳转..."
+    console.log(result.user)
     messageTimer = setTimeout(() => {
       successMessage.value = ""
-      router.push("/user/main") // 跳转到主页面
+      // 根据 isadmin 值跳转到不同页面
+      if (result.user.isadmin) {
+        router.push("/admin/main") // 跳转到管理员页面
+      } else {
+        router.push("/user/main") // 跳转到普通用户页面
+      }
     }, 3000)
   } catch (error) {
     errorMessage.value = error.response?.data?.message || "用户名或密码错误"
