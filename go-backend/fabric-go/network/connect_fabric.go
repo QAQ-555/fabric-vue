@@ -12,7 +12,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/hyperledger/fabric-gateway/pkg/client"
@@ -78,6 +80,160 @@ func GetContract(config FabricConfig) *client.Contract {
 	contract := network.GetContract(chaincodeName)
 
 	return contract
+}
+
+func GenerateCertificateAndUpdateConfig(username, password, org string, config *FabricConfig) error {
+	// 设置 CA 地址，根据 org 动态选择端口
+	caURL := fmt.Sprintf("0.0.0.0:%d", map[string]int{"org1": 7054, "org2": 7055}[org])
+
+	// 设置环境变量
+	fabricCAClientHome := fmt.Sprintf("./%s/%s/", org, username)
+	fmt.Sprintf("./%s/%s/", org, username)
+	tlsCertPath := fmt.Sprintf("/tmp/hyperledger/%s/peer1/assets/ca/%s-ca-cert.pem", org, org)
+	configtlsCertPath := fmt.Sprintf("/tmp/hyperledger/%s/peer1/tls-msp/tlscacerts/tls-0-0-0-0-7052.pem", org)
+	fmt.Printf("设置环境变量:\n")
+	fmt.Printf("FABRIC_CA_CLIENT_HOME=%s\n", fabricCAClientHome)
+	fmt.Printf("FABRIC_CA_CLIENT_TLS_CERTFILES=%s\n", tlsCertPath)
+	fmt.Printf("FABRIC_CA_CLIENT_MSPDIR=msp\n")
+	os.Setenv("FABRIC_CA_CLIENT_TLS_CERTFILES", tlsCertPath)
+	os.Setenv("FABRIC_CA_CLIENT_HOME", fabricCAClientHome)
+	os.Setenv("FABRIC_CA_CLIENT_MSPDIR", "msp")
+	// 创建目录
+	fmt.Printf("创建目录: %s\n", fabricCAClientHome)
+	if err := os.MkdirAll(fabricCAClientHome, os.ModePerm); err != nil {
+		return fmt.Errorf("创建目录失败: %w", err)
+	}
+
+	// 构建 enroll 命令
+	enrollCmdExec := exec.Command("fabric-ca-client", "enroll", "-d",
+		"-u", fmt.Sprintf("https://%s:%s@%s", username, password, caURL))
+	enrollCmdExec.Stdout = os.Stdout
+	enrollCmdExec.Stderr = os.Stderr
+
+	// 执行 enroll 命令
+	if err := enrollCmdExec.Run(); err != nil {
+		return fmt.Errorf("执行 fabric-ca-client enroll 失败: %w", err)
+	}
+
+	// 动态设置 MSPID、PeerEndpoint 和 GatewayPeer
+	config.MSPID = fmt.Sprintf("%sMSP", org)
+	config.PeerEndpoint = fmt.Sprintf("dns:///localhost:%d", map[string]int{"org1": 7051, "org2": 9051}[org])
+	config.GatewayPeer = fmt.Sprintf("peer1-%s", org)
+
+	// 更新 FabricConfig
+	config.CryptoPath = fabricCAClientHome
+	absPath, err := filepath.Abs(fabricCAClientHome)
+	if err != nil {
+		return fmt.Errorf("获取绝对路径失败: %w", err)
+	}
+	config.CertPath = filepath.Join(absPath, "msp", "signcerts")
+	config.KeyPath = filepath.Join(absPath, "msp", "keystore")
+	config.TLSCertPath = configtlsCertPath
+	fmt.Printf("证书生成成功，存储在: %s\n", fabricCAClientHome)
+	return nil
+}
+
+func RevokeCertificateAndCleanup(username, org string) error {
+	// 设置 CA 地址，根据 org 动态选择端口
+	caURL := fmt.Sprintf("0.0.0.0:%d", map[string]int{"org1": 7054, "org2": 7055}[org])
+
+	// 设置环境变量
+	tlsCertPath := fmt.Sprintf("/tmp/hyperledger/%s/peer1/assets/ca/%s-ca-cert.pem", org, org)
+	fmt.Printf("设置环境变量:\n")
+	fmt.Printf("FABRIC_CA_CLIENT_TLS_CERTFILES=%s\n", tlsCertPath)
+	fabricCAClientHome := fmt.Sprintf("./%s/%s/", org, username)
+	os.Setenv("FABRIC_CA_CLIENT_TLS_CERTFILES", tlsCertPath)
+	os.Setenv("FABRIC_CA_CLIENT_HOME", fabricCAClientHome)
+
+	// 获取用户证书路径
+	userCertPath := fmt.Sprintf("./%s/%s/msp/signcerts/cert.pem", org, username)
+	if _, err := os.Stat(userCertPath); os.IsNotExist(err) {
+		return fmt.Errorf("用户证书不存在: %s", userCertPath)
+	}
+
+	// 使用 openssl 获取证书的序列号和 AKI
+	fmt.Printf("获取证书的序列号和 AKI...\n")
+	serialCmd := exec.Command("openssl", "x509", "-in", userCertPath, "-serial", "-noout")
+	serialOut, err := serialCmd.Output()
+	if err != nil {
+		return fmt.Errorf("获取证书序列号失败: %w", err)
+	}
+	serial := string(bytes.TrimSpace(bytes.Split(serialOut, []byte("="))[1]))
+
+	akiCmd := exec.Command("openssl", "x509", "-in", userCertPath, "-text")
+	akiOut, err := akiCmd.Output()
+	if err != nil {
+		return fmt.Errorf("获取证书 AKI 失败: %w", err)
+	}
+	aki := ""
+	for _, line := range bytes.Split(akiOut, []byte("\n")) {
+		if bytes.Contains(line, []byte("keyid")) {
+			aki = string(bytes.ToLower(bytes.ReplaceAll(bytes.TrimSpace(bytes.Split(line, []byte(":"))[1]), []byte(":"), []byte(""))))
+			break
+		}
+	}
+	if aki == "" {
+		return fmt.Errorf("未能解析证书 AKI")
+	}
+
+	// 构建 revoke 命令
+	fmt.Printf("撤销证书: Serial=%s, AKI=%s\n", serial, aki)
+	revokeCmdExec := exec.Command("fabric-ca-client", "revoke", "-d",
+		"-u", fmt.Sprintf("https://%s", caURL),
+		"-s", serial,
+		"-a", aki,
+		"-r", "affiliationchange",
+		"--tls.certfiles", tlsCertPath)
+	revokeCmdExec.Stdout = os.Stdout
+	revokeCmdExec.Stderr = os.Stderr
+
+	// 执行 revoke 命令
+	if err := revokeCmdExec.Run(); err != nil {
+		return fmt.Errorf("执行 fabric-ca-client revoke 失败: %w", err)
+	}
+
+	// 清理临时目录
+	if fabricCAClientHome != "" {
+		if err := os.RemoveAll(fabricCAClientHome); err != nil {
+			return fmt.Errorf("清理临时目录失败: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func RegisterIdentity(username, secret, idType, org string) error {
+	// 设置 CA 地址，根据 org 动态选择端口
+	caURL := fmt.Sprintf("0.0.0.0:%d", map[string]int{"org1": 7054, "org2": 7055}[org])
+
+	// 设置环境变量
+	tlsCertPath := fmt.Sprintf("/tmp/hyperledger/%s/peer1/assets/ca/%s-ca-cert.pem", org, org)
+	fabricCAClientHome := fmt.Sprintf("/tmp/hyperledger/%s/ca/admin", org)
+	fmt.Printf("设置环境变量:\n")
+	fmt.Printf("FABRIC_CA_CLIENT_TLS_CERTFILES=%s\n", tlsCertPath)
+	fmt.Printf("FABRIC_CA_CLIENT_HOME=%s\n", fabricCAClientHome)
+	os.Setenv("FABRIC_CA_CLIENT_TLS_CERTFILES", tlsCertPath)
+	os.Setenv("FABRIC_CA_CLIENT_HOME", fabricCAClientHome)
+
+	// 构建 register 命令
+	registerCmd := fmt.Sprintf("fabric-ca-client register -d --id.name %s --id.secret %s --id.type %s --id.attrs \"hf.Revoker=true\" -u https://%s", username, secret, idType, caURL)
+	fmt.Printf("执行命令: %s\n", registerCmd)
+	registerCmdExec := exec.Command("fabric-ca-client", "register", "-d",
+		"--id.name", username,
+		"--id.secret", secret,
+		"--id.type", idType,
+		"--id.attrs", "hf.Revoker=true",
+		"-u", fmt.Sprintf("https://%s", caURL))
+	registerCmdExec.Stdout = os.Stdout
+	registerCmdExec.Stderr = os.Stderr
+
+	// 执行 register 命令
+	if err := registerCmdExec.Run(); err != nil {
+		return fmt.Errorf("执行 fabric-ca-client register 失败: %w", err)
+	}
+
+	fmt.Printf("注册成功: 用户名=%s, 密码=%s, 类型=%s\n", username, secret, idType)
+	return nil
 }
 
 // 创建 gRPC 连接
@@ -166,15 +322,4 @@ func formatJSON(data []byte) string {
 		panic(fmt.Errorf("failed to parse JSON: %w", err))
 	}
 	return prettyJSON.String()
-}
-
-func queryUser(contract *client.Contract, username string) {
-	fmt.Printf("\n--> Evaluate Transaction: ReadUser, 查询用户 %s\n", username)
-
-	result, err := contract.EvaluateTransaction("ReadUser", username)
-	if err != nil {
-		panic(fmt.Errorf("查询用户失败: %w", err))
-	}
-
-	fmt.Printf("*** 用户详情: %s\n", formatJSON(result))
 }

@@ -504,3 +504,17 @@ func QueryTask(contract *client.Contract, taskID string) (*Task, error) {
 	// 如果所有条件都满足，返回用户信息
 	return &task, nil
 }
+
+// 将模型添加到任务
+func AddModelToTask(contract *client.Contract, taskID string, modelID string) error {
+	fmt.Printf("\n--> Submit Transaction: AddModelToTask, 将模型 %s 添加到任务 %s\n", modelID, taskID)
+
+	// 调用链码的 AddModelToTask 方法
+	_, err := contract.SubmitTransaction("AddModelToTask", taskID, modelID)
+	if err != nil {
+		return fmt.Errorf("将模型添加到任务失败: %w", err)
+	}
+
+	fmt.Printf("*** 成功将模型 %s 添加到任务 %s\n", modelID, taskID)
+	return nil
+}

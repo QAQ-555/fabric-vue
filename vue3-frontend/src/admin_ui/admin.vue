@@ -70,16 +70,25 @@ const loginTime = ref(new Date().toLocaleString())
 const pendingTasks = ref(3)
 
 // 退出登录
-const handleLogout = () => {
+const handleLogout = async () => {
+  try {
+    const response = await axios.post("http://localhost:8089/log_out", {
+      username: userInfo.value.username,
+      organization: userInfo.value.organization, // 传递用户组织信息
+    });
+    console.log("用户组织:", response.data.organization); // 处理返回的用户组织信息
+  } catch (error) {
+    console.error("注销请求失败:", error);
+  }
   // 清除用户状态
-  localStorage.removeItem('authToken')
-  localStorage.removeItem('userInfo')
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('userInfo');
 
   // 跳转到登录页并阻止返回
   router.replace('/').then(() => {
-    window.location.reload() // 可选：完全重置应用状态
-  })
-}
+    window.location.reload();
+  });
+};
 </script>
 
 <style scoped>

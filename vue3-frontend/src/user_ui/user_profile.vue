@@ -39,7 +39,11 @@
         <ul class="system-info">
           <li>👤 用户名：{{ username_now }}</li>
           <li>📊 所属组织：{{ organization_now }}</li>
-          <li>🔑 公钥哈希：{{ pubkey_now }}</li>
+          <li>
+            🔑 rsa公钥：
+            <span>{{ pubkey_now.substring(0, 20) }}...</span>
+            <button class="copy-btn" @click="copyPublicKey">复制</button>
+          </li>
           <li>🪙 持有积分：{{ token }}</li>
         </ul>
         <button class="upload-key-btn" @click="showUploadPanel = true">上传公钥</button>
@@ -53,12 +57,16 @@
             <tr>
               <th>#</th>
               <th>模型ID</th>
+              <th>操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="(model, index) in postedModels" :key="index">
               <td>{{ index + 1 }}</td>
               <td>{{ model }}</td>
+              <td>
+                <button @click="openTaskModal(model)">添加到任务</button>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -67,17 +75,38 @@
         <p>暂无已上传模型。</p>
       </div>
 
-      <!-- 已创建任务展示 -->
-      <div v-if="tasks.length > 0" class="tasks-container">
-        <h2>已创建任务</h2>
-        <ul class="tasks-list">
-          <li v-for="(task, index) in tasks" :key="index">
-            📝 任务名称：{{ task }}
-          </li>
-        </ul>
+      <!-- 添加到任务小窗 -->
+      <div v-if="showTaskModal" class="task-modal">
+        <h2>选择任务</h2>
+        <select v-model="selectedAccepted">
+          <option v-for="item in acceptedTasks" :key="item" :value="item">{{ item }}</option>
+        </select>
+        <div class="modal-actions">
+          <button @click="submitModelToTask">提交</button>
+          <button @click="closeTaskModal">取消</button>
+        </div>
+      </div>
+
+      <!-- 已接收任务展示 -->
+      <div v-if="acceptedTasks.length > 0" class="tasks-container">
+        <h2>已接收任务</h2>
+        <table class="tasks-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>任务ID</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(task, index) in acceptedTasks" :key="index">
+              <td>{{ index + 1 }}</td>
+              <td>{{ task }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
       <div v-else class="no-tasks-container">
-        <p>暂无已创建任务。</p>
+        <p>暂无已接收任务。</p>
       </div>
 
       <!-- 上传公钥面板 -->
@@ -108,8 +137,12 @@ const token = ref("加载中...")
 const showUploadPanel = ref(false)
 const publicKeyInput = ref("")
 const postedModels = ref([])
-const tasks = ref([])
 const userInfo = ref(JSON.parse(localStorage.getItem('userInfo') || '{}'))
+const accepted = ref([]); // 用户的 accepted 列表
+const showTaskModal = ref(false); // 控制小窗显示
+const selectedAccepted = ref(""); // 选中的 accepted 项
+const selectedModel = ref(""); // 选中的模型 ID
+const acceptedTasks = ref([]); // 用于展示的已接收任务列表
 
 // 获取用户信息
 const getinfo = async () => {
@@ -125,8 +158,9 @@ const getinfo = async () => {
     pubkey_now.value = response.data.user.pubkeyhash;
     token.value = response.data.user.token;
     postedModels.value = response.data.user.posted || []; // 更新已上传模型数组
-    tasks.value = response.data.user.tasks || []; // 更新已创建任务数组
-    console.log("已创建任务:", tasks.value);
+    accepted.value = response.data.user.accepted || []; // 更新已创建任务数组
+    acceptedTasks.value = response.data.user.accepted || []; // 更新已接收任务数组
+    console.log("已接收任务:", acceptedTasks.value);
   } catch (error) {
     console.error("获取用户信息失败:", error);
     alert("获取用户信息失败，请稍后重试！");
@@ -154,21 +188,72 @@ const submitPublicKey = async () => {
 }
 
 // 退出登录
-const handleLogout = () => {
+const handleLogout = async () => {
+  try {
+    const response = await axios.post("http://localhost:8089/log_out", {
+      username: userInfo.value.username,
+      organization: userInfo.value.organization, // 传递用户组织信息
+    });
+    console.log("用户组织:", response.data.organization); // 处理返回的用户组织信息
+  } catch (error) {
+    console.error("注销请求失败:", error);
+  }
   // 清除用户状态
-  localStorage.removeItem('authToken')
-  localStorage.removeItem('userInfo')
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('userInfo');
 
   // 跳转到登录页并阻止返回
   router.replace('/').then(() => {
-    window.location.reload() // 可选：完全重置应用状态
-  })
-}
+    window.location.reload();
+  });
+};
+
+// 复制公钥到剪贴板
+const copyPublicKey = () => {
+  navigator.clipboard.writeText(pubkey_now.value).then(() => {
+    alert("公钥已复制到剪贴板！");
+  }).catch(err => {
+    console.error("复制公钥失败:", err);
+    alert("复制公钥失败，请稍后重试！");
+  });
+};
+
+// 打开任务选择小窗
+const openTaskModal = (modelId) => {
+  if (acceptedTasks.length === 0) {
+    alert("暂无可用任务！");
+    return;
+  }
+  selectedModel.value = modelId;
+  showTaskModal.value = true;
+};
+
+// 关闭任务选择小窗
+const closeTaskModal = () => {
+  showTaskModal.value = false;
+  selectedAccepted.value = "";
+};
+
+// 提交模型到任务
+const submitModelToTask = async () => {
+  try {
+    const response = await axios.post("http://localhost:8089/model_to_task", {
+      modelId: selectedModel.value,
+      taskID: selectedAccepted.value,
+    });
+    alert("模型已成功添加到任务！");
+    closeTaskModal();
+  } catch (error) {
+    console.error("添加模型到任务失败:", error);
+    alert("添加失败，请稍后重试！");
+  }
+};
 
 // 页面加载时获取用户信息
-onMounted(() => {
-  getinfo()
-})
+onMounted(async () => {
+  await getinfo();
+  accepted.value = userInfo.value.accepted || []; // 初始化 accepted 列表
+});
 </script>
 
 <style scoped>
@@ -308,7 +393,7 @@ onMounted(() => {
 }
 
 .upload-panel textarea {
-  width: 100%;
+  width: 95%;
   height: 100px;
   margin-bottom: 20px;
   padding: 10px;
@@ -389,6 +474,125 @@ onMounted(() => {
 }
 
 .models-table tr:hover {
+  background-color: #f1f1f1;
+}
+
+/* 复制按钮样式 */
+.copy-btn {
+  margin-left: 10px;
+  padding: 5px 10px;
+  background-color: #3498db;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.3s ease;
+}
+
+.copy-btn:hover {
+  background-color: #2980b9;
+}
+
+/* 添加到任务小窗样式 */
+.task-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  width: 300px;
+  z-index: 1000;
+}
+
+.task-modal h2 {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.task-modal select {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 20px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+}
+
+.modal-actions button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.modal-actions button:first-child {
+  background-color: #4caf50;
+  color: white;
+}
+
+.modal-actions button:first-child:hover {
+  background-color: #45a049;
+}
+
+.modal-actions button:last-child {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.modal-actions button:last-child:hover {
+  background-color: #c0392b;
+}
+
+/* 已接收任务展示样式 */
+.tasks-container {
+  margin-top: 20px;
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  max-height: 200px; /* 固定高度 */
+  overflow-y: auto; /* 添加滚动条 */
+}
+
+.tasks-container h2 {
+  margin-bottom: 15px;
+  color: #2c3e50;
+}
+
+/* 任务表格样式 */
+.tasks-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.tasks-table th,
+.tasks-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: center;
+}
+
+.tasks-table th {
+  background-color: #f4f4f4;
+  color: #333;
+  font-weight: bold;
+}
+
+.tasks-table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.tasks-table tr:hover {
   background-color: #f1f1f1;
 }
 </style>

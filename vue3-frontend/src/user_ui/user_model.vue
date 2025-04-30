@@ -68,6 +68,15 @@
           <p>请输入模型的 CID 以下载文件。</p>
           <button class="download-button" @click="handleDownload">下载模型</button>
         </div>
+
+        <!-- 查询模型 CID -->
+        <div class="query-section">
+          <h3>查询模型 CID</h3>
+          <p>请输入模型 ID：</p>
+          <input v-model="modelId" placeholder="模型 ID" class="query-input" />
+          <button class="query-button" @click="queryModelCid">查询 CID</button>
+          <p v-if="modelCid">模型 CID：{{ modelCid }}</p>
+        </div>
       </div>
     </div>
   </div>
@@ -88,6 +97,10 @@ const loginTime = ref(new Date().toLocaleString())
 const pendingTasks = ref(3)
 const modelSignature = ref('')
 const fileInput = ref(null)
+
+// 新增变量
+const modelId = ref('')
+const modelCid = ref('')
 
 // 上传模型方法
 const handleUpload = () => {
@@ -165,14 +178,45 @@ const handleDownload = async () => {
   }
 }
 
-// 退出登录方法
-const handleLogout = () => {
-  localStorage.removeItem('authToken')
-  localStorage.removeItem('userInfo')
-  router.replace('/').then(() => {
-    window.location.reload()
-  })
+// 查询模型 CID 方法
+const queryModelCid = async () => {
+  if (!modelId.value.trim()) {
+    alert('模型 ID 不能为空')
+    return
+  }
+
+  try {
+    const response = await axios.post('http://localhost:8089/query_model_cid', {
+      modelId: modelId.value,
+    })
+    modelCid.value = response.data.cid
+    alert('模型 CID 查询成功！')
+  } catch (error) {
+    console.error('查询模型 CID 失败:', error)
+    alert('查询模型 CID 失败，请稍后重试！')
+  }
 }
+
+// 退出登录方法
+const handleLogout = async () => {
+  try {
+    const response = await axios.post("http://localhost:8089/log_out", {
+      username: userInfo.value.username,
+      organization: userInfo.value.organization, // 传递用户组织信息
+    });
+    console.log("用户组织:", response.data.organization); // 处理返回的用户组织信息
+  } catch (error) {
+    console.error("注销请求失败:", error);
+  }
+  // 清除用户状态
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('userInfo');
+
+  // 跳转到登录页并阻止返回
+  router.replace('/').then(() => {
+    window.location.reload();
+  });
+};
 </script>
 
 <style scoped>
@@ -370,5 +414,47 @@ const handleLogout = () => {
 
 .download-button:hover {
   background-color: #d35400;
+}
+
+/* 查询模型 CID 样式 */
+.query-section {
+  margin-top: 30px;
+  padding: 20px;
+  background-color: #ecf0f1;
+  border-radius: 10px;
+  text-align: center;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.query-section h3 {
+  color: #2c3e50;
+  margin-bottom: 10px;
+}
+
+.query-section p {
+  color: #7f8c8d;
+  margin-bottom: 10px;
+}
+
+.query-input {
+  width: 80%;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+.query-button {
+  padding: 10px 20px;
+  background-color: #3498db;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.query-button:hover {
+  background-color: #2980b9;
 }
 </style>
