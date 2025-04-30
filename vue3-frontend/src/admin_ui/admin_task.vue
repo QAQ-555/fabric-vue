@@ -117,6 +117,7 @@
                 <td>
                   <button @click="startNextRound(task.ID)">进入下一轮</button>
                   <button @click="finishTask(task.ID)">完成任务</button>
+                  <button @click="downloadModels(task)">获取模型</button>
                 </td>
               </tr>
             </tbody>
@@ -273,7 +274,7 @@ const submitNextRound = async () => {
       username: userInfo.value.username,
     })
     const response = await axios.post("http://localhost:8089/next_task_round", {
-      taskId: selectedTaskId.value, // 确保传递正确的任务 ID
+      taskId: selectedTaskId.value, 
       rootModelId: nextRoundRootModelId.value,
       username: userInfo.value.username,
     });
@@ -351,6 +352,22 @@ const handleLogout = async () => {
   router.replace('/').then(() => {
     window.location.reload(); // 可选：完全重置应用状态
   });
+};
+
+// 下载模型数据并保存为 .txt 文件
+const downloadModels = (task) => {
+  if (!task.models || task.models.length === 0) {
+    alert(`任务 ${task.ID} 没有模型数据！`);
+    return;
+  }
+
+  const content = task.models.join('\n');
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${task.ID}.txt`;
+  link.click();
+  URL.revokeObjectURL(link.href);
 };
 </script>
 

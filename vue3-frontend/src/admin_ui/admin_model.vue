@@ -78,7 +78,10 @@
           <p>请输入模型 ID：</p>
           <input v-model="modelId" placeholder="模型 ID" class="query-input" />
           <button class="query-button" @click="queryModelCid">查询 CID</button>
-          <p v-if="modelCid">模型 CID：{{ modelCid }}</p>
+          <p v-if="modelCid">
+            模型 CID：{{ modelCid }}
+            <span v-if="countdown > 0">（{{ countdown }} 秒后隐藏）</span>
+          </p>
         </div>
       </div>
     </div>
@@ -104,6 +107,40 @@ const fileInput = ref(null)
 // 新增变量
 const modelId = ref('')
 const modelCid = ref('')
+const countdown = ref(0)
+let countdownTimer = null
+
+const startCountdown = () => {
+  countdown.value = 10 // 设置倒计时为 10 秒
+  clearInterval(countdownTimer)
+  countdownTimer = setInterval(() => {
+    if (countdown.value > 0) {
+      countdown.value--
+    } else {
+      clearInterval(countdownTimer)
+      modelCid.value = '' // 倒计时结束后隐藏 CID
+    }
+  }, 1000)
+}
+
+const queryModelCid = async () => {
+  if (!modelId.value.trim()) {
+    alert('模型 ID 不能为空')
+    return
+  }
+
+  try {
+    const response = await axios.post('http://localhost:8089/get_model_cid', {
+      modelId: modelId.value,
+    })
+    modelCid.value = response.data.cid
+    startCountdown() // 开始倒计时
+    alert('模型 CID 查询成功！')
+  } catch (error) {
+    console.error('查询模型 CID 失败:', error)
+    alert('查询模型 CID 失败，请稍后重试！')
+  }
+}
 
 // 上传模型方法
 const handleUpload = () => {
@@ -178,25 +215,6 @@ const handleDownload = async () => {
   } catch (error) {
     console.error('下载失败:', error)
     alert('下载失败，请重试')
-  }
-}
-
-// 查询模型 CID 方法
-const queryModelCid = async () => {
-  if (!modelId.value.trim()) {
-    alert('模型 ID 不能为空')
-    return
-  }
-
-  try {
-    const response = await axios.post('http://localhost:8089/query_model_cid', {
-      modelId: modelId.value,
-    })
-    modelCid.value = response.data.cid
-    alert('模型 CID 查询成功！')
-  } catch (error) {
-    console.error('查询模型 CID 失败:', error)
-    alert('查询模型 CID 失败，请稍后重试！')
   }
 }
 

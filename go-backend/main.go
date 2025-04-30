@@ -97,6 +97,7 @@ func main() {
 	r.POST("/delete_task", delete_task)
 	r.POST("/finish_task", finish_task)
 	r.POST("/model_to_task", model_to_task)
+	r.POST("/get_model_cid", get_model_cid) // 新增路由
 
 	r.Run(":8089")
 }
@@ -581,5 +582,32 @@ func model_to_task(ctx *gin.Context) {
 	// 返回成功信息到前端
 	ctx.JSON(http.StatusOK, gin.H{
 		"message": fmt.Sprintf("模型 %s 已成功添加到任务 %s", request.ModelID, request.TaskID),
+	})
+}
+
+// 获取模型的 CID
+func get_model_cid(ctx *gin.Context) {
+	var request struct {
+		ModelID string `json:"modelID"`
+	}
+	contract := invoke_fabric.GetContract(defaultConfig) // 使用 defaultConfig
+
+	// 绑定 JSON 数据
+	if err := ctx.BindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "无效的 JSON 数据"})
+		return
+	}
+
+	// 调用链码函数 ReadModel
+	model, err := invoke_fabric.ReadModel(contract, request.ModelID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("获取模型失败: %s", err.Error())})
+		return
+	}
+
+	// 返回模型的 CID
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "模型获取成功",
+		"cid":     model.Modelhash,
 	})
 }

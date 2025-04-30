@@ -518,3 +518,24 @@ func AddModelToTask(contract *client.Contract, taskID string, modelID string) er
 	fmt.Printf("*** 成功将模型 %s 添加到任务 %s\n", modelID, taskID)
 	return nil
 }
+
+// 查询模型信息
+func ReadModel(contract *client.Contract, modelID string) (*Model, error) {
+	fmt.Printf("\n--> Evaluate Transaction: ReadModel, 查询模型 %s\n", modelID)
+
+	// 调用链码查询模型信息
+	result, err := contract.EvaluateTransaction("ReadModel", modelID)
+	if err != nil {
+		return nil, fmt.Errorf("查询模型失败: %w", err)
+	}
+
+	// 将查询结果解析为 Model 结构体
+	var model Model
+	err = json.Unmarshal([]byte(result), &model)
+	if err != nil {
+		return nil, fmt.Errorf("解析模型 JSON 失败: %w", err)
+	}
+
+	// 返回模型信息
+	return &model, nil
+}

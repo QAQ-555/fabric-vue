@@ -73,7 +73,7 @@
                 <td>{{ index + 1 }}</td>
                 <td>{{ user.username }}</td>
                 <td>{{ user.organization }}</td>
-                <td>{{ user.pubkeyhash }}</td>
+                <td>{{ user.pubkeyhash.slice(0, 10) + '...' }}</td>
                 <td>{{ user.token }}</td>
                 <td>{{ user.isAdmin ? "是" : "否" }}</td>
                 <td>{{ user.isAccepted ? "是" : "否" }}</td>
@@ -97,8 +97,6 @@
                 <th>#</th>
                 <th>用户名</th>
                 <th>组织</th>
-                <th>公钥哈希</th>
-                <th>令牌</th>
                 <th>操作</th>
               </tr>
             </thead>
@@ -107,8 +105,6 @@
                 <td>{{ index + 1 }}</td>
                 <td>{{ user.username }}</td>
                 <td>{{ user.organization }}</td>
-                <td>{{ user.pubkeyhash }}</td>
-                <td>{{ user.token }}</td>
                 <td>
                   <button @click="openManageDialog(user)">管理</button>
                 </td>
@@ -348,6 +344,16 @@ const closeDeleteDialog = () => {
 const confirmDeleteUser = async () => {
   await deleteUser(selectedUser.value.username);
   closeDeleteDialog();
+};
+
+// 复制公钥到剪贴板
+const copyToClipboard = (text) => {
+  navigator.clipboard.writeText(text).then(() => {
+    alert("公钥已复制到剪贴板！");
+  }).catch((error) => {
+    console.error("复制失败:", error);
+    alert("复制失败，请稍后重试！");
+  });
 };
 </script>
 
